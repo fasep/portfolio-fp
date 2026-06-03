@@ -372,7 +372,7 @@
       <div class="topbar-row">
         <div>
           <h1>Portfolio FP</h1>
-          <div class="sub"><span class="dot-live"></span>Fintual · 16 posiciones · USD</div>
+          <div class="sub"><span class="dot-live"></span>Fintual · 17 posiciones · USD</div>
         </div>
         <div class="badge">03-jun-2026</div>
       </div>
@@ -394,7 +394,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">Pos.</div>
-          <div class="stat-value amber">16</div>
+          <div class="stat-value amber">17</div>
           <div class="stat-sub">2 en rojo</div>
         </div>
       </div>
@@ -420,7 +420,7 @@
   <div class="screen" id="screen-trades">
     <div class="topbar">
       <h1>Trades</h1>
-      <div class="sub" style="margin-top:2px">38 operaciones · 6 ventas · 100% win rate</div>
+      <div class="sub" style="margin-top:2px">40 operaciones · 6 ventas · 100% win rate</div>
     </div>
     <div class="section-hdr">Historial completo</div>
     <div class="trades-list" id="trades-list"></div>
@@ -493,9 +493,11 @@ const HOLDINGS = [
   {ticker:'AMBA',sector:'Semiconductores',shares:3,cost:81.38,pnl:-10.68,pct:5.4},
   {ticker:'VRDN',sector:'Biotech / Salud',shares:13,cost:15.91,pnl:2.51,pct:5.7},
   {ticker:'WDAY',sector:'SaaS',shares:1,cost:146.77,pnl:-0.82,pct:4.1},
+  {ticker:'CMPC',sector:'Latam / Forestal',shares:0.74,cost:65.60,pnl:0.00,pct:1.3},
 ];
 
 const TRADES = [
+  {date:'03-jun',ticker:'CMPC',type:'buy',amount:'$48.37',pnl:null},
   {date:'03-jun',ticker:'ORACLE',type:'sell',amount:'$99.93',pnl:22.37,pnlPct:28.83},
   {date:'03-jun',ticker:'MU',type:'sell',amount:'$80.00',pnl:25.33,pnlPct:46.34},
   {date:'02-jun',ticker:'WDAY',type:'buy',amount:'$150.00',pnl:null},
@@ -755,7 +757,7 @@ async function sendAI() {
         'X-App-Password': APP_PASSWORD
       },
       body: JSON.stringify({
-        model:'claude-sonnet-4-5',
+        model:'claude-sonnet-4-20250514',
         max_tokens:1000,
         system: SYSTEM_PROMPT,
         tools:[{type:'web_search_20250305',name:'web_search'}],
@@ -807,12 +809,108 @@ document.getElementById('ai-input').addEventListener('keydown', e=>{
   if(e.key==='Enter') sendAI();
 });
 
+// ===== LOAD FROM SHEETS =====
+async function loadFromSheets() {
+  showLoadingState();
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Password': APP_PASSWORD,
+        'X-Action': 'sheets'
+      },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    parseAndRender(data);
+  } catch(e) {
+    console.error('Sheets error:', e);
+    // Fallback a datos hardcodeados
+    renderHoldings();
+    renderTrades();
+    renderAlerts();
+  }
+  renderSectors();
+  renderChips();
+}
+
+function showLoadingState() {
+  const list = document.getElementById('holdings-list');
+  if(list) list.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:12px;"><div style="margin-bottom:8px">⟳ Cargando desde Google Sheets...</div></div>';
+}
+
+function parseAndRender(data) {
+  const { trades, holdings, dashboard } = data;
+
+  // Parse Holdings
+  if (holdings && holdings.length > 2) {
+    const rows = holdings.slice(2).filter(r => r[0] && r[0] !== 'Ticker' && r[3]);
+    const parsed = rows.map(r => {
+      const ticker = (r[0]||'').trim();
+      const cost = parseFloat((r[2]||'0').replace(/[$,]/g,'')) || 0;
+      const pnlPct = parseFloat((r[7]||'0').replace(/[%,()]/g,'')) || 0;
+      const pnlSign = (r[7]||'').includes('(') ? -1 : 1;
+      const pct = parseFloat((r[8]||'0').replace(/[%,]/g,'')) || 0;
+      const shares = parseFloat((r[1]||'0').replace(/,/g,'.')) || 0;
+      return { ticker, sector: r[9]||'—', shares, cost, pnl: pnlSign * Math.abs(pnlPct), pct };
+    }).filter(h => h.ticker && h.cost > 0);
+    if (parsed.length > 0) {
+      HOLDINGS.length = 0;
+      parsed.forEach(h => HOLDINGS.push(h));
+    }
+  }
+
+  // Parse Trades
+  if (trades && trades.length > 3) {
+    const rows = trades.slice(3).filter(r => r[2] && r[3]);
+    const parsed = rows.reverse().map(r => {
+      const date = (r[1]||'').replace('2026-','').replace('2025-','');
+      const ticker = (r[2]||'').toUpperCase();
+      const type = (r[3]||'').toLowerCase().includes('venta') ? 'sell' : 'buy';
+      const amount = r[6]||'';
+      const pnlRaw = r[16]||'';
+      const pnlPctRaw = r[17]||'';
+      const pnl = pnlRaw ? parseFloat(pnlRaw.replace(/[$,]/g,'')) : null;
+      const pnlPct = pnlPctRaw ? parseFloat(pnlPctRaw.replace(/[%,]/g,'')) : null;
+      return { date, ticker, type, amount, pnl, pnlPct };
+    });
+    if (parsed.length > 0) {
+      TRADES.length = 0;
+      parsed.forEach(t => TRADES.push(t));
+    }
+  }
+
+  // Parse Dashboard stats
+  if (dashboard && dashboard.length > 0) {
+    const flat = dashboard.flat();
+    const totalIdx = flat.findIndex(v => v && v.includes && v.includes('Valor total'));
+    if (totalIdx >= 0) {
+      const totalVal = flat[totalIdx+1]||'';
+      const totalEl = document.querySelector('.stat-value:not(.green):not(.amber)');
+      if (totalEl && totalVal) totalEl.textContent = totalVal;
+    }
+  }
+
+  // Update counters
+  const posCount = HOLDINGS.length;
+  const tradeCount = TRADES.length;
+  const sellCount = TRADES.filter(t=>t.type==='sell').length;
+  document.querySelectorAll('.stat-value.amber').forEach(el => el.textContent = posCount);
+  document.querySelectorAll('div.sub').forEach(el => {
+    if(el.textContent.includes('posiciones')) el.innerHTML = '<span class="dot-live"></span>Fintual · ' + posCount + ' posiciones · USD';
+    if(el.textContent.includes('operaciones')) el.textContent = tradeCount + ' operaciones · ' + sellCount + ' ventas';
+  });
+
+  renderHoldings();
+  renderTrades();
+  renderAlerts();
+}
+
 // INIT
-renderHoldings();
-renderSectors();
-renderTrades();
-renderAlerts();
-renderChips();
+loadFromSheets();
 </script>
 </body>
 </html>
