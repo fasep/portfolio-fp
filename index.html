@@ -146,12 +146,26 @@
     align-items: center;
     gap: 12px;
     transition: border-color 0.15s;
-    cursor: pointer;
   }
   .holding-card:active { border-color: var(--border-bright); background: var(--surface2); }
   .holding-card.red-border { border-left: 3px solid var(--red); }
   .holding-card.green-border { border-left: 3px solid var(--green); }
   .holding-card.amber-border { border-left: 3px solid var(--amber); }
+  .holding-logo {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .holding-logo img { width: 26px; height: 26px; object-fit: contain; }
+  .logo-fallback {
+    font-family: var(--font-display);
+    font-size: 14px; font-weight: 800;
+    color: var(--text-muted);
+    display: none;
+  }
   .holding-left { flex: 1; min-width: 0; }
   .holding-ticker { font-family: var(--font-display); font-size: 15px; font-weight: 800; letter-spacing: 0.01em; }
   .holding-sector { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
@@ -598,6 +612,25 @@ INSTRUCCIONES:
 const WORKER_URL = 'https://portfolio-fp-proxy.analitico1.workers.dev';
 const APP_PASSWORD = '010416gS';
 
+const LOGO_MAP = {
+  'ORACLE':'oracle.com','MU':'micron.com','NVDA':'nvidia.com','APPLE':'apple.com',
+  'ANET':'arista.com','VST':'vistracorp.com','TLN':'talenenergy.com','NXE':'nexgenenergy.ca',
+  'CCJ':'cameco.com','MELI':'mercadolibre.com','SOFI':'sofi.com','CRM':'salesforce.com',
+  'ZS':'zscaler.com','AMBA':'ambarella.com','VRDN':'viridiantherapeutics.com',
+  'WDAY':'workday.com','CMPC':'cmpc.cl','ADBE':'adobe.com','DELL':'dell.com',
+};
+
+function logoHtml(ticker) {
+  const domain = LOGO_MAP[ticker] || LOGO_MAP[ticker.toUpperCase()];
+  const letter = ticker[0];
+  if (!domain) return `<div class="holding-logo"><div class="logo-fallback" style="display:flex">${letter}</div></div>`;
+  return `<div class="holding-logo">
+    <img src="https://logo.clearbit.com/${domain}" alt="${ticker}"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div class="logo-fallback">${letter}</div>
+  </div>`;
+}
+
 // ===== RENDER =====
 function renderHoldings() {
   const list = document.getElementById('holdings-list');
@@ -606,7 +639,8 @@ function renderHoldings() {
     const barW = Math.min(Math.abs(h.pnl) * 2.2, 100);
     const borderClass = h.pnl <= -8 ? 'red-border' : h.pnl >= 15 ? 'green-border' : h.pnl < 0 ? 'amber-border' : '';
     const pnlLabel = `${isPos?'+':''}${h.pnl.toFixed(1)}%`;
-    return `<div class="holding-card ${borderClass}" onclick="goAI('Analiza ${h.ticker}: tengo ${h.shares} acciones, costo promedio $${h.cost}, P&L ${h.pnl.toFixed(1)}%. ¿Mantener, agregar o reducir?')">
+    return `<div class="holding-card ${borderClass}">
+      ${logoHtml(h.ticker)}
       <div class="holding-left">
         <div class="holding-ticker">${h.ticker}</div>
         <div class="holding-sector">${h.sector}</div>
