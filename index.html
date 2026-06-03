@@ -842,6 +842,22 @@ function showLoadingState() {
   if(list) list.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:12px;"><div style="margin-bottom:8px">⟳ Cargando desde Google Sheets...</div></div>';
 }
 
+function parseChileanNumber(str) {
+  // Formato chileno: $1.234,56 → 1234.56
+  if (!str) return 0;
+  const clean = str.replace(/[$\s]/g, '');
+  // Si tiene punto Y coma: 1.234,56 → separador miles=punto, decimal=coma
+  if (clean.includes('.') && clean.includes(',')) {
+    return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  // Solo coma: 183,26 → decimal
+  if (clean.includes(',') && !clean.includes('.')) {
+    return parseFloat(clean.replace(',', '.')) || 0;
+  }
+  // Solo punto o sin nada: normal
+  return parseFloat(clean) || 0;
+}
+
 function parseAndRender(data) {
   const { trades, holdings, dashboard } = data;
 
@@ -850,11 +866,12 @@ function parseAndRender(data) {
     const rows = holdings.slice(2).filter(r => r[0] && r[0] !== 'Ticker' && r[3]);
     const parsed = rows.map(r => {
       const ticker = (r[0]||'').trim();
-      const cost = parseFloat((r[2]||'0').replace(/[$,]/g,'')) || 0;
-      const pnlPct = parseFloat((r[7]||'0').replace(/[%,()]/g,'')) || 0;
+      const cost = parseChileanNumber(r[2]||'0');
+      const pnlRaw = (r[7]||'').replace(/[()]/g,'');
+      const pnlPct = parseChileanNumber(pnlRaw.replace('%',''));
       const pnlSign = (r[7]||'').includes('(') ? -1 : 1;
-      const pct = parseFloat((r[8]||'0').replace(/[%,]/g,'')) || 0;
-      const shares = parseFloat((r[1]||'0').replace(/,/g,'.')) || 0;
+      const pct = parseChileanNumber((r[8]||'0').replace('%',''));
+      const shares = parseChileanNumber(r[1]||'0');
       return { ticker, sector: r[9]||'—', shares, cost, pnl: pnlSign * Math.abs(pnlPct), pct };
     }).filter(h => h.ticker && h.cost > 0);
     if (parsed.length > 0) {
@@ -873,8 +890,8 @@ function parseAndRender(data) {
       const amount = r[6]||'';
       const pnlRaw = r[16]||'';
       const pnlPctRaw = r[17]||'';
-      const pnl = pnlRaw ? parseFloat(pnlRaw.replace(/[$,]/g,'')) : null;
-      const pnlPct = pnlPctRaw ? parseFloat(pnlPctRaw.replace(/[%,]/g,'')) : null;
+      const pnl = pnlRaw ? parseChileanNumber(pnlRaw) : null;
+      const pnlPct = pnlPctRaw ? parseChileanNumber(pnlPctRaw.replace('%','')) : null;
       return { date, ticker, type, amount, pnl, pnlPct };
     });
     if (parsed.length > 0) {
