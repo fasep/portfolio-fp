@@ -612,22 +612,16 @@ INSTRUCCIONES:
 const WORKER_URL = 'https://portfolio-fp-proxy.analitico1.workers.dev';
 const APP_PASSWORD = '010416gS';
 
-const LOGO_MAP = {
-  'ORACLE':'oracle.com','MU':'micron.com','NVDA':'nvidia.com','APPLE':'apple.com',
-  'ANET':'arista.com','VST':'vistracorp.com','TLN':'talenenergy.com','NXE':'nexgenenergy.ca',
-  'CCJ':'cameco.com','MELI':'mercadolibre.com','SOFI':'sofi.com','CRM':'salesforce.com',
-  'ZS':'zscaler.com','AMBA':'ambarella.com','VRDN':'viridiantherapeutics.com',
-  'WDAY':'workday.com','CMPC':'cmpc.cl','ADBE':'adobe.com','DELL':'dell.com',
+const TICKER_SYMBOL = {
+  'ORACLE':'ORCL','APPLE':'AAPL',
 };
 
 function logoHtml(ticker) {
-  const domain = LOGO_MAP[ticker] || LOGO_MAP[ticker.toUpperCase()];
-  const letter = ticker[0];
-  if (!domain) return `<div class="holding-logo"><div class="logo-fallback" style="display:flex">${letter}</div></div>`;
+  const symbol = TICKER_SYMBOL[ticker] || ticker;
   return `<div class="holding-logo">
-    <img src="https://logo.clearbit.com/${domain}" alt="${ticker}"
+    <img src="https://assets.parqet.com/logos/symbol/${symbol}?format=png" alt="${ticker}"
          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-    <div class="logo-fallback">${letter}</div>
+    <div class="logo-fallback">${ticker[0]}</div>
   </div>`;
 }
 
