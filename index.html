@@ -561,14 +561,44 @@ const SECTORS = [
   {name:'Cybersecurity',pct:2,color:'#ff8c42'},
 ];
 
-const ALERTS = [
-  {ticker:'ZS',type:'red',msg:'Caída -12.2% desde entrada. Post-earnings selloff. Tesis sin registrar. Stop sugerido: $120.',pnl:'-12.2%'},
-  {ticker:'AMBA',type:'red',msg:'Caída -10.7%. Earnings beat pero mercado castigó. Briefing edge AI el 4-jun — catalizador potencial.',pnl:'-10.7%'},
-  {ticker:'MELI',type:'amber',msg:'Prácticamente flat (-0.5%). Sin tesis registrada en journal. Revisar convicción.',pnl:'-0.5%'},
-  {ticker:'WDAY',type:'amber',msg:'Entrada reciente, leve negativo. Revisar tesis antes de DCA.',pnl:'-0.8%'},
-  {ticker:'ORACLE',type:'green',msg:'Vendiste parcial hoy +28.8% ✅. Tesis cloud/AI intacta. Evalúa mantener el remanente.',pnl:'+25.4%'},
-  {ticker:'MU',type:'green',msg:'Vendiste parcial hoy +46.3% 🔥. Mejor trade del portafolio. Posición remanente abierta.',pnl:'+44.4%'},
-];
+function buildAlerts() {
+  const RED_MSGS = [
+    'Caída significativa. Evalúa si la tesis sigue intacta o activa stop.',
+    'Posición en zona de pérdida relevante. Revisar soporte y catalizadores.',
+    'Drawdown considerable. Define un nivel de corte antes de escalar pérdidas.',
+  ];
+  const AMBER_MSGS = [
+    'Leve negativo. Revisar convicción antes de agregar (DCA).',
+    'En rojo menor. Monitorea — sin acción urgente pero requiere seguimiento.',
+    'Posición bajo agua. Chequea si el sector sigue con momentum.',
+  ];
+  const GREEN_MSGS = [
+    'Ganancia destacada. Considera toma parcial de ganancias y ajuste de stop.',
+    'Posición con retorno sobresaliente. Evalúa venta parcial para asegurar.',
+    'Rentabilidad alta. Buena oportunidad de rebalancear o proteger ganancias.',
+  ];
+  const pick = (arr, ticker) => arr[ticker.charCodeAt(0) % arr.length];
+
+  const alerts = [];
+  HOLDINGS.forEach(h => {
+    const pct = h.pnl;
+    const label = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+    if (pct < -8) {
+      alerts.push({ ticker: h.ticker, type: 'red', pnl: label,
+        msg: `Caída ${label} desde entrada (${h.sector}). ${pick(RED_MSGS, h.ticker)}` });
+    } else if (pct < 0) {
+      alerts.push({ ticker: h.ticker, type: 'amber', pnl: label,
+        msg: `${label} desde entrada (${h.sector}). ${pick(AMBER_MSGS, h.ticker)}` });
+    } else if (pct > 20) {
+      alerts.push({ ticker: h.ticker, type: 'green', pnl: label,
+        msg: `${label} desde entrada (${h.sector}). ${pick(GREEN_MSGS, h.ticker)}` });
+    }
+  });
+
+  const order = { red: 0, amber: 1, green: 2 };
+  alerts.sort((a, b) => order[a.type] - order[b.type] || Math.abs(b.pnl.replace(/[^0-9.-]/g,'')) - Math.abs(a.pnl.replace(/[^0-9.-]/g,'')));
+  return alerts;
+}
 
 const AI_CHIPS = [
   {label:'Estado portafolio',q:'Analiza el estado actual de mi portafolio y dame las 3 posiciones más urgentes de revisar'},
@@ -716,8 +746,16 @@ function renderTrades() {
 }
 
 function renderAlerts() {
+  const alerts = buildAlerts();
   const list = document.getElementById('alerts-list');
-  list.innerHTML = ALERTS.map(a => {
+  const redN = alerts.filter(a=>a.type==='red').length;
+  const sub = document.querySelector('#screen-alertas .sub');
+  if (sub) sub.textContent = `${alerts.length} alertas · ${redN} crítica${redN!==1?'s':''}`;
+  if (!alerts.length) {
+    list.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:12px">Sin alertas activas</div>';
+    return;
+  }
+  list.innerHTML = alerts.map(a => {
     const pnlColor = a.type==='red'?'var(--red)':a.type==='amber'?'var(--amber)':'var(--green)';
     return `<div class="alert-card ${a.type}">
       <div class="alert-top">
