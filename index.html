@@ -688,9 +688,18 @@ function drawDonut() {
   ctx.fillText('posiciones',cx,cy+10);
 }
 
+const MONTH_VAL = {ene:0,jan:0,feb:1,mar:2,abr:3,apr:3,may:4,jun:5,jul:6,ago:7,aug:7,sep:8,oct:9,nov:10,dic:11,dec:11};
+function tradeDateVal(str) {
+  const [a, b] = (str||'').split('-');
+  if (!b) return 0;
+  if (isNaN(b)) return (MONTH_VAL[b.toLowerCase()]??0)*31 + parseInt(a);
+  return parseInt(a)*31 + parseInt(b);
+}
+
 function renderTrades() {
   const list = document.getElementById('trades-list');
-  list.innerHTML = TRADES.map(t => {
+  const sorted = [...TRADES].sort((a,b) => tradeDateVal(b.date) - tradeDateVal(a.date));
+  list.innerHTML = sorted.map(t => {
     const isSell = t.type==='sell';
     const hasPnl = t.pnl!==null;
     return `<div class="trade-card">
