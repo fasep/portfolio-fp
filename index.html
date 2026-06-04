@@ -389,7 +389,7 @@
           <h1>Portfolio FP</h1>
           <div class="sub"><span class="dot-live"></span>Fintual · 17 posiciones · USD</div>
         </div>
-        <div class="badge">03-jun-2026</div>
+        <div class="badge" id="today-badge"></div>
       </div>
       <div class="stat-strip" style="padding:12px 0 0; gap:8px;">
         <div class="stat-card">
@@ -1001,6 +1001,12 @@ function parseAndRender(data) {
   renderTrades();
   renderAlerts();
 }
+
+// Fecha dinámica en badge
+const _meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const _hoy = new Date();
+document.getElementById('today-badge').textContent =
+  String(_hoy.getDate()).padStart(2,'0') + '-' + _meses[_hoy.getMonth()] + '-' + _hoy.getFullYear();
 
 // INIT
 loadFromSheets();
