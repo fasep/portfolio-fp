@@ -376,6 +376,43 @@
   /* ANIMATIONS */
   @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
   .screen.active { animation: fadeUp 0.2s ease; }
+
+  /* ===== DETAIL MODAL ===== */
+  .detail-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); z-index: 1000; align-items: flex-end;
+  }
+  .detail-overlay.open { display: flex; }
+  .detail-sheet {
+    background: var(--surface); border-radius: 20px 20px 0 0;
+    width: 100%; max-height: 88vh; overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+    animation: slideUp 0.25s cubic-bezier(.32,1,.44,1);
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .detail-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 12px auto 0; }
+  .detail-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px 14px; border-bottom: 1px solid var(--border);
+  }
+  .detail-title { flex: 1; }
+  .detail-ticker-name { font-family: var(--font-display); font-size: 22px; font-weight: 800; }
+  .detail-sector-name { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .detail-close {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted);
+    width: 28px; height: 28px; border-radius: 50%; font-size: 13px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .detail-stats-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px 16px;
+  }
+  .detail-stat-card { background: var(--surface2); border-radius: 12px; padding: 12px; }
+  .detail-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .detail-stat-value { font-size: 20px; font-weight: 600; margin-top: 4px; }
+  .detail-stat-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .detail-chart-wrap { padding: 0 16px 20px; }
+  .detail-chart-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .detail-chart-frame { width: 100%; height: 230px; border: none; border-radius: 12px; display: block; background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -487,6 +524,46 @@
       <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span>Agente
     </button>
   </nav>
+
+  <!-- ===== DETAIL MODAL ===== -->
+  <div class="detail-overlay" id="detail-overlay" onclick="closeDetail()">
+    <div class="detail-sheet" onclick="event.stopPropagation()">
+      <div class="detail-handle"></div>
+      <div class="detail-header">
+        <div id="detail-logo"></div>
+        <div class="detail-title">
+          <div class="detail-ticker-name" id="detail-ticker"></div>
+          <div class="detail-sector-name" id="detail-sector"></div>
+        </div>
+        <button class="detail-close" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="detail-stats-grid">
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">Rent. Total</div>
+          <div class="detail-stat-value" id="detail-pnl-total">—</div>
+          <div class="detail-stat-sub" id="detail-pnl-total-sub"></div>
+        </div>
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">Rent. Hoy</div>
+          <div class="detail-stat-value" id="detail-pnl-day">—</div>
+          <div class="detail-stat-sub" id="detail-pnl-day-sub"></div>
+        </div>
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">Precio costo</div>
+          <div class="detail-stat-value" id="detail-cost">—</div>
+          <div class="detail-stat-sub" id="detail-shares"></div>
+        </div>
+        <div class="detail-stat-card">
+          <div class="detail-stat-label">Peso portfolio</div>
+          <div class="detail-stat-value" id="detail-weight">—</div>
+        </div>
+      </div>
+      <div class="detail-chart-wrap">
+        <div class="detail-chart-label">Gráfico del día</div>
+        <iframe class="detail-chart-frame" id="detail-chart-frame" src="" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
+      </div>
+    </div>
+  </div>
 
 </div>
 
@@ -659,12 +736,12 @@ function logoHtml(ticker) {
 // ===== RENDER =====
 function renderHoldings() {
   const list = document.getElementById('holdings-list');
-  list.innerHTML = HOLDINGS.map(h => {
+  list.innerHTML = HOLDINGS.map((h, idx) => {
     const isPos = h.pnl >= 0;
     const barW = Math.min(Math.abs(h.pnl) * 2.2, 100);
     const borderClass = h.pnl <= -8 ? 'red-border' : h.pnl >= 15 ? 'green-border' : h.pnl < 0 ? 'amber-border' : '';
     const pnlLabel = `${isPos?'+':''}${h.pnl.toFixed(1)}%`;
-    return `<div class="holding-card ${borderClass}">
+    return `<div class="holding-card ${borderClass}" onclick="openDetail(HOLDINGS[${idx}])" style="cursor:pointer">
       ${logoHtml(h.ticker)}
       <div class="holding-left">
         <div class="holding-ticker">${h.ticker}</div>
@@ -1000,6 +1077,79 @@ function parseAndRender(data) {
   renderHoldings();
   renderTrades();
   renderAlerts();
+}
+
+// ===== HOLDING DETAIL =====
+const TV_SYMBOL = {
+  ORACLE:'NYSE:ORCL', APPLE:'NASDAQ:AAPL', MU:'NASDAQ:MU',
+  NVDA:'NASDAQ:NVDA', ANET:'NYSE:ANET', VST:'NYSE:VST',
+  TLN:'NYSE:TLN', NXE:'NYSE:NXE', CCJ:'NYSE:CCJ',
+  MELI:'NASDAQ:MELI', SOFI:'NASDAQ:SOFI', CRM:'NYSE:CRM',
+  ZS:'NASDAQ:ZS', AMBA:'NASDAQ:AMBA', VRDN:'NASDAQ:VRDN',
+  WDAY:'NASDAQ:WDAY', CMPC:'BCS:CMPC'
+};
+const YF_SYMBOL = { ORACLE:'ORCL', APPLE:'AAPL', CMPC:'CMPC.SN' };
+function yfSym(t) { return YF_SYMBOL[t] || t; }
+
+function openDetail(h) {
+  document.getElementById('detail-logo').innerHTML = logoHtml(h.ticker);
+  document.getElementById('detail-ticker').textContent = h.ticker;
+  document.getElementById('detail-sector').textContent = h.sector;
+
+  const isPos = h.pnl >= 0;
+  const pnlEl = document.getElementById('detail-pnl-total');
+  pnlEl.textContent = (isPos ? '+' : '') + h.pnl.toFixed(2) + '%';
+  pnlEl.style.color = isPos ? 'var(--green)' : 'var(--red)';
+
+  document.getElementById('detail-cost').textContent = '$' + h.cost.toLocaleString('en', {maximumFractionDigits:2});
+  document.getElementById('detail-shares').textContent = h.shares + ' acción' + (h.shares !== 1 ? 'es' : '');
+  document.getElementById('detail-weight').textContent = h.pct + '%';
+
+  const dayEl = document.getElementById('detail-pnl-day');
+  dayEl.textContent = '...'; dayEl.style.color = 'var(--text-muted)';
+  document.getElementById('detail-pnl-day-sub').textContent = '';
+
+  const tvSym = TV_SYMBOL[h.ticker] || h.ticker;
+  document.getElementById('detail-chart-frame').src =
+    `https://s.tradingview.com/widgetembed/?frameElementId=tv_fw&symbol=${tvSym}&interval=D&hidesidetoolbar=1&hidetoptoolbar=0&theme=dark&style=1&locale=es`;
+
+  document.getElementById('detail-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  fetchDayReturn(h);
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').classList.remove('open');
+  document.getElementById('detail-chart-frame').src = '';
+  document.body.style.overflow = '';
+}
+
+async function fetchDayReturn(h) {
+  const dayEl = document.getElementById('detail-pnl-day');
+  const daySubEl = document.getElementById('detail-pnl-day-sub');
+  try {
+    const sym = encodeURIComponent(yfSym(h.ticker));
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    const outer = await res.json();
+    const data = JSON.parse(outer.contents);
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (meta) {
+      const prev = meta.chartPreviousClose || meta.previousClose;
+      const curr = meta.regularMarketPrice;
+      if (prev && curr) {
+        const chgPct = ((curr - prev) / prev) * 100;
+        const chgAbs = curr - prev;
+        dayEl.textContent = (chgPct >= 0 ? '+' : '') + chgPct.toFixed(2) + '%';
+        dayEl.style.color = chgPct >= 0 ? 'var(--green)' : 'var(--red)';
+        daySubEl.textContent = (chgAbs >= 0 ? '+' : '-') + '$' + Math.abs(chgAbs).toFixed(2);
+        return;
+      }
+    }
+    dayEl.textContent = '—'; dayEl.style.color = 'var(--text-muted)';
+  } catch(e) {
+    dayEl.textContent = '—'; dayEl.style.color = 'var(--text-muted)';
+  }
 }
 
 // Fecha dinámica en badge
