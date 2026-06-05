@@ -491,8 +491,13 @@
   <!-- ===== SCREEN: AGENTE IA ===== -->
   <div class="screen" id="screen-ai">
     <div class="topbar">
-      <h1>Agente IA</h1>
-      <div class="sub" style="margin-top:2px"><span class="dot-live"></span>Claude + web search en tiempo real</div>
+      <div class="topbar-row">
+        <div>
+          <h1>Agente IA</h1>
+          <div class="sub" style="margin-top:2px"><span class="dot-live"></span>Claude + web search en tiempo real</div>
+        </div>
+        <button class="detail-close" onclick="clearChatHistory()" title="Limpiar historial" style="font-size:11px;width:auto;padding:0 10px;border-radius:20px">Limpiar</button>
+      </div>
     </div>
     <div class="ai-quick-scroll" id="ai-chips"></div>
     <div class="ai-feed" id="ai-feed">
@@ -877,6 +882,46 @@ function quickAI(q) {
   sendAI();
 }
 
+// ===== AI STORAGE =====
+const CHAT_HISTORY_KEY = 'portfolio_chat_history';
+const CHAT_BUBBLES_KEY = 'portfolio_chat_bubbles';
+
+function saveChatToStorage() {
+  try {
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chatHistory));
+    const bubbles = [...document.getElementById('ai-feed').querySelectorAll('.ai-bubble')].map(b => ({
+      cls: b.className, html: b.innerHTML
+    }));
+    localStorage.setItem(CHAT_BUBBLES_KEY, JSON.stringify(bubbles));
+  } catch(e) {}
+}
+
+function loadChatFromStorage() {
+  try {
+    const history = localStorage.getItem(CHAT_HISTORY_KEY);
+    const bubblesRaw = localStorage.getItem(CHAT_BUBBLES_KEY);
+    if (!history || !bubblesRaw) return;
+    chatHistory = JSON.parse(history);
+    const feed = document.getElementById('ai-feed');
+    const welcome = feed.querySelector('.ai-welcome');
+    JSON.parse(bubblesRaw).forEach(b => {
+      const el = document.createElement('div');
+      el.className = b.cls; el.innerHTML = b.html;
+      feed.appendChild(el);
+    });
+    if (chatHistory.length > 0 && welcome) welcome.style.display = 'none';
+    feed.scrollTop = feed.scrollHeight;
+  } catch(e) {}
+}
+
+function clearChatHistory() {
+  chatHistory = [];
+  localStorage.removeItem(CHAT_HISTORY_KEY);
+  localStorage.removeItem(CHAT_BUBBLES_KEY);
+  const feed = document.getElementById('ai-feed');
+  feed.innerHTML = '<div class="ai-welcome"><strong>Agente listo.</strong> Tu portafolio de 16 posiciones está cargado. Pregúntame sobre cualquier ticker, señal de entrada/salida o estado general del portafolio.</div>';
+}
+
 // ===== AI =====
 let chatHistory = [];
 
@@ -940,6 +985,7 @@ async function sendAI() {
             i+=3; setTimeout(type,8);
           } else {
             msg.innerHTML=text.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+            saveChatToStorage();
           }
           feed.scrollTop=feed.scrollHeight;
         }
@@ -1159,6 +1205,7 @@ document.getElementById('today-badge').textContent =
   String(_hoy.getDate()).padStart(2,'0') + '-' + _meses[_hoy.getMonth()] + '-' + _hoy.getFullYear();
 
 // INIT
+loadChatFromStorage();
 loadFromSheets();
 </script>
 </body>
