@@ -207,7 +207,9 @@
   .trade-date-amt { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
   .trade-pnl-val { text-align: right; flex-shrink: 0; }
   .trade-pnl-val.pos { color: var(--green); font-weight: 500; font-size: 13px; }
+  .trade-pnl-val.neg { color: var(--red); font-weight: 500; font-size: 13px; }
   .trade-pnl-val.none { color: var(--text-dim); font-size: 12px; }
+  .trade-type-badge.sell-neg { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,77,109,0.3); }
 
   /* ALERTS */
   .alerts-list { display: flex; flex-direction: column; gap: 10px; padding: 0 12px; }
@@ -814,15 +816,23 @@ function renderTrades() {
   list.innerHTML = sorted.map(t => {
     const isSell = t.type==='sell';
     const hasPnl = t.pnl!==null;
+    const isNegSell = isSell && hasPnl && t.pnl < 0;
+    const badgeClass = isNegSell ? 'sell-neg' : t.type;
+    let pnlHtml;
+    if (hasPnl) {
+      const sign = t.pnl >= 0 ? '+' : '';
+      const pnlClass = t.pnl >= 0 ? 'pos' : 'neg';
+      pnlHtml = `<div class="trade-pnl-val ${pnlClass}">${sign}$${t.pnl.toFixed(2)}<br><span style="font-size:10px">${sign}${t.pnlPct.toFixed(1)}%</span></div>`;
+    } else {
+      pnlHtml = `<div class="trade-pnl-val none">—</div>`;
+    }
     return `<div class="trade-card">
-      <span class="trade-type-badge ${t.type}">${isSell?'Venta':'Compra'}</span>
+      <span class="trade-type-badge ${badgeClass}">${isSell?'Venta':'Compra'}</span>
       <div class="trade-info">
         <div class="trade-ticker-name">${t.ticker}</div>
         <div class="trade-date-amt">${t.date} · ${t.amount}</div>
       </div>
-      ${hasPnl
-        ? `<div class="trade-pnl-val pos">+$${t.pnl.toFixed(2)}<br><span style="font-size:10px">+${t.pnlPct.toFixed(1)}%</span></div>`
-        : `<div class="trade-pnl-val none">—</div>`}
+      ${pnlHtml}
     </div>`;
   }).join('');
 }
