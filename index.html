@@ -72,8 +72,8 @@
 
   /* STAT STRIP */
   .stat-strip {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 8px;
     padding: 12px 16px;
     flex-shrink: 0;
@@ -83,6 +83,20 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 10px 8px;
+  }
+  .stat-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+  }
+  .stat-hero-left .stat-label { margin-bottom: 2px; }
+  .stat-hero-total { font-family: var(--font-display); font-size: 28px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .stat-hero-right { text-align: right; }
+  .stat-sub-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
   }
   .stat-label { font-size: 9px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
   .stat-value { font-family: var(--font-display); font-size: 16px; font-weight: 700; line-height: 1; }
@@ -431,26 +445,36 @@
         </div>
         <div class="badge" id="today-badge"></div>
       </div>
-      <div class="stat-strip" style="padding:12px 0 0; gap:8px;">
-        <div class="stat-card">
-          <div class="stat-label">Total</div>
-          <div class="stat-value" id="stat-total-val">$3.6K</div>
-          <div class="stat-sub">USD</div>
+      <div class="stat-strip" style="padding:12px 0 0;">
+        <!-- Hero: total -->
+        <div class="stat-card stat-hero">
+          <div class="stat-hero-left">
+            <div class="stat-label">Total portafolio</div>
+            <div class="stat-hero-total" id="stat-total-val">$3,633</div>
+            <div class="stat-sub">USD</div>
+          </div>
+          <div class="stat-hero-right">
+            <div class="stat-value green" id="stat-unreal-pct">+10.3%</div>
+            <div class="stat-sub" id="stat-unreal-usd">no realizado · +$338</div>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">No real.</div>
-          <div class="stat-value green" id="stat-unreal-pct">+10.3%</div>
-          <div class="stat-sub" id="stat-unreal-usd">+$338</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Realiz.</div>
-          <div class="stat-value green" id="stat-real-val">+$85</div>
-          <div class="stat-sub" id="stat-real-sub">100% win</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Pos.</div>
-          <div class="stat-value amber" id="stat-pos-count">17</div>
-          <div class="stat-sub" id="stat-pos-sub">2 en rojo</div>
+        <!-- Sub-row: 3 stats -->
+        <div class="stat-sub-row">
+          <div class="stat-card">
+            <div class="stat-label">No real.</div>
+            <div class="stat-value green" id="stat-unreal-pct2">+10.3%</div>
+            <div class="stat-sub" id="stat-unreal-usd2">+$338</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Realiz.</div>
+            <div class="stat-value green" id="stat-real-val">+$85</div>
+            <div class="stat-sub" id="stat-real-sub">100% win</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pos.</div>
+            <div class="stat-value amber" id="stat-pos-count">17</div>
+            <div class="stat-sub" id="stat-pos-sub">2 en rojo</div>
+          </div>
         </div>
       </div>
     </div>
@@ -775,22 +799,22 @@ function updateStatStrip() {
     : 100;
   const realSign = realUsd >= 0 ? '+' : '';
 
-  // Total actual
-  const totalK = totalCurrent >= 1000
-    ? '$' + (totalCurrent / 1000).toFixed(1) + 'K'
-    : '$' + totalCurrent.toFixed(0);
+  // Total actual — número completo con separador de miles
+  const totalFmt = '$' + Math.round(totalCurrent).toLocaleString('en');
 
   // Actualizar DOM
   const tv = document.getElementById('stat-total-val');
-  if (tv) tv.textContent = totalK;
+  if (tv) tv.textContent = totalFmt;
 
-  const up = document.getElementById('stat-unreal-pct');
-  if (up) {
-    up.textContent = `${unrealSign}${unrealPct.toFixed(1)}%`;
-    up.className = `stat-value ${unrealPct >= 0 ? 'green' : 'red'}`;
-  }
+  const unrealLabel = `no realizado · ${unrealUsdSign}$${Math.abs(unrealUsd).toFixed(0)}`;
+  ['stat-unreal-pct', 'stat-unreal-pct2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = `${unrealSign}${unrealPct.toFixed(1)}%`; el.className = `stat-value ${unrealPct >= 0 ? 'green' : 'red'}`; }
+  });
   const uu = document.getElementById('stat-unreal-usd');
-  if (uu) uu.textContent = `${unrealUsdSign}$${Math.abs(unrealUsd).toFixed(0)}`;
+  if (uu) uu.textContent = unrealLabel;
+  const uu2 = document.getElementById('stat-unreal-usd2');
+  if (uu2) uu2.textContent = `${unrealUsdSign}$${Math.abs(unrealUsd).toFixed(0)}`;
 
   const rv = document.getElementById('stat-real-val');
   if (rv) {
