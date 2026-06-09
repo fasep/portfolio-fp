@@ -88,6 +88,7 @@
   .stat-value { font-family: var(--font-display); font-size: 16px; font-weight: 700; line-height: 1; }
   .stat-value.green { color: var(--green); }
   .stat-value.amber { color: var(--amber); }
+  .stat-value.red { color: var(--red); }
   .stat-sub { font-size: 9px; color: var(--text-muted); margin-top: 3px; }
 
   /* BOTTOM NAV */
@@ -433,23 +434,23 @@
       <div class="stat-strip" style="padding:12px 0 0; gap:8px;">
         <div class="stat-card">
           <div class="stat-label">Total</div>
-          <div class="stat-value">$3.6K</div>
+          <div class="stat-value" id="stat-total-val">$3.6K</div>
           <div class="stat-sub">USD</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">No real.</div>
-          <div class="stat-value green">+10.3%</div>
-          <div class="stat-sub">+$338</div>
+          <div class="stat-value green" id="stat-unreal-pct">+10.3%</div>
+          <div class="stat-sub" id="stat-unreal-usd">+$338</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Realiz.</div>
-          <div class="stat-value green">+$85</div>
-          <div class="stat-sub">100% win</div>
+          <div class="stat-value green" id="stat-real-val">+$85</div>
+          <div class="stat-sub" id="stat-real-sub">100% win</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Pos.</div>
-          <div class="stat-value amber">17</div>
-          <div class="stat-sub">2 en rojo</div>
+          <div class="stat-value amber" id="stat-pos-count">17</div>
+          <div class="stat-sub" id="stat-pos-sub">2 en rojo</div>
         </div>
       </div>
     </div>
@@ -738,6 +739,70 @@ function logoHtml(ticker) {
          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
     <div class="logo-fallback">${ticker[0]}</div>
   </div>`;
+}
+
+// ===== STAT STRIP =====
+function updateStatStrip() {
+  const posCount = HOLDINGS.length;
+  const redCount = HOLDINGS.filter(h => h.pnl < 0).length;
+
+  // Unrealized P&L calculado desde HOLDINGS
+  let totalCost = 0, totalCurrent = 0;
+  HOLDINGS.forEach(h => {
+    const basis = h.cost * h.shares;
+    totalCost += basis;
+    totalCurrent += basis * (1 + h.pnl / 100);
+  });
+  const unrealUsd = totalCurrent - totalCost;
+  const unrealPct = totalCost > 0 ? (unrealUsd / totalCost) * 100 : 0;
+  const unrealSign = unrealPct >= 0 ? '+' : '';
+  const unrealUsdSign = unrealUsd >= 0 ? '+' : '';
+
+  // Realized P&L desde TRADES (solo ventas con pnl != null)
+  const sells = TRADES.filter(t => t.type === 'sell' && t.pnl !== null);
+  const realUsd = sells.reduce((s, t) => s + t.pnl, 0);
+  const winRate = sells.length > 0
+    ? Math.round(sells.filter(t => t.pnl > 0).length / sells.length * 100)
+    : 100;
+  const realSign = realUsd >= 0 ? '+' : '';
+
+  // Total actual
+  const totalK = totalCurrent >= 1000
+    ? '$' + (totalCurrent / 1000).toFixed(1) + 'K'
+    : '$' + totalCurrent.toFixed(0);
+
+  // Actualizar DOM
+  const tv = document.getElementById('stat-total-val');
+  if (tv) tv.textContent = totalK;
+
+  const up = document.getElementById('stat-unreal-pct');
+  if (up) {
+    up.textContent = `${unrealSign}${unrealPct.toFixed(1)}%`;
+    up.className = `stat-value ${unrealPct >= 0 ? 'green' : 'red'}`;
+  }
+  const uu = document.getElementById('stat-unreal-usd');
+  if (uu) uu.textContent = `${unrealUsdSign}$${Math.abs(unrealUsd).toFixed(0)}`;
+
+  const rv = document.getElementById('stat-real-val');
+  if (rv) {
+    rv.textContent = `${realSign}$${Math.abs(realUsd).toFixed(0)}`;
+    rv.className = `stat-value ${realUsd >= 0 ? 'green' : 'red'}`;
+  }
+  const rs = document.getElementById('stat-real-sub');
+  if (rs) rs.textContent = `${winRate}% win`;
+
+  const pc = document.getElementById('stat-pos-count');
+  if (pc) pc.textContent = posCount;
+  const ps = document.getElementById('stat-pos-sub');
+  if (ps) ps.textContent = `${redCount} en rojo`;
+
+  // Subheader de trades y holdings
+  document.querySelectorAll('div.sub').forEach(el => {
+    if (el.textContent.includes('posiciones')) el.innerHTML = '<span class="dot-live"></span>Fintual · ' + posCount + ' posiciones · USD';
+    const tradeCount = TRADES.length;
+    const sellCount = TRADES.filter(t => t.type === 'sell').length;
+    if (el.textContent.includes('operaciones')) el.textContent = tradeCount + ' operaciones · ' + sellCount + ' ventas';
+  });
 }
 
 // ===== RENDER =====
@@ -1120,18 +1185,9 @@ function parseAndRender(data) {
     }
   }
 
-  // Update counters
-  const posCount = HOLDINGS.length;
-  const tradeCount = TRADES.length;
-  const sellCount = TRADES.filter(t=>t.type==='sell').length;
-  document.querySelectorAll('.stat-value.amber').forEach(el => el.textContent = posCount);
-  document.querySelectorAll('div.sub').forEach(el => {
-    if(el.textContent.includes('posiciones')) el.innerHTML = '<span class="dot-live"></span>Fintual · ' + posCount + ' posiciones · USD';
-    if(el.textContent.includes('operaciones')) el.textContent = tradeCount + ' operaciones · ' + sellCount + ' ventas';
-  });
-
   renderHoldings();
   renderTrades();
+  updateStatStrip();
   renderAlerts();
 }
 
