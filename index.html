@@ -820,9 +820,9 @@ function renderTrades() {
     const badgeClass = isNegSell ? 'sell-neg' : t.type;
     let pnlHtml;
     if (hasPnl) {
-      const sign = t.pnl >= 0 ? '+' : '';
+      const sign = t.pnl >= 0 ? '+' : '-';
       const pnlClass = t.pnl >= 0 ? 'pos' : 'neg';
-      pnlHtml = `<div class="trade-pnl-val ${pnlClass}">${sign}$${t.pnl.toFixed(2)}<br><span style="font-size:10px">${sign}${t.pnlPct.toFixed(1)}%</span></div>`;
+      pnlHtml = `<div class="trade-pnl-val ${pnlClass}">${sign}$${Math.abs(t.pnl).toFixed(2)}<br><span style="font-size:10px">${sign}${Math.abs(t.pnlPct).toFixed(1)}%</span></div>`;
     } else {
       pnlHtml = `<div class="trade-pnl-val none">—</div>`;
     }
@@ -1052,19 +1052,19 @@ function showLoadingState() {
 }
 
 function parseChileanNumber(str) {
-  // Formato chileno: $1.234,56 → 1234.56
   if (!str) return 0;
-  const clean = str.replace(/[$\s]/g, '');
-  // Si tiene punto Y coma: 1.234,56 → separador miles=punto, decimal=coma
+  // Notación contable negativa: ($34,30) o (15,59%) → negativo
+  const isNeg = /^\(.*\)$/.test(str.trim());
+  const clean = str.replace(/[$\s%()]/g, '');
+  let val;
   if (clean.includes('.') && clean.includes(',')) {
-    return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
+    val = parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
+  } else if (clean.includes(',') && !clean.includes('.')) {
+    val = parseFloat(clean.replace(',', '.')) || 0;
+  } else {
+    val = parseFloat(clean) || 0;
   }
-  // Solo coma: 183,26 → decimal
-  if (clean.includes(',') && !clean.includes('.')) {
-    return parseFloat(clean.replace(',', '.')) || 0;
-  }
-  // Solo punto o sin nada: normal
-  return parseFloat(clean) || 0;
+  return isNeg ? -val : val;
 }
 
 function parseAndRender(data) {
