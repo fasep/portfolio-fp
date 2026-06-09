@@ -1276,23 +1276,23 @@ async function fetchDayReturn(h) {
   const dayEl = document.getElementById('detail-pnl-day');
   const daySubEl = document.getElementById('detail-pnl-day-sub');
   try {
-    const sym = encodeURIComponent(yfSym(h.ticker));
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    const outer = await res.json();
-    const data = JSON.parse(outer.contents);
-    const meta = data?.chart?.result?.[0]?.meta;
-    if (meta) {
-      const prev = meta.chartPreviousClose || meta.previousClose;
-      const curr = meta.regularMarketPrice;
-      if (prev && curr) {
-        const chgPct = ((curr - prev) / prev) * 100;
-        const chgAbs = curr - prev;
-        dayEl.textContent = (chgPct >= 0 ? '+' : '') + chgPct.toFixed(2) + '%';
-        dayEl.style.color = chgPct >= 0 ? 'var(--green)' : 'var(--red)';
-        daySubEl.textContent = (chgAbs >= 0 ? '+' : '-') + '$' + Math.abs(chgAbs).toFixed(2);
-        return;
-      }
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Password': APP_PASSWORD,
+        'X-Action': 'price'
+      },
+      body: JSON.stringify({ symbol: yfSym(h.ticker) })
+    });
+    const data = await res.json();
+    if (data.prev && data.curr) {
+      const chgPct = ((data.curr - data.prev) / data.prev) * 100;
+      const chgAbs = data.curr - data.prev;
+      dayEl.textContent = (chgPct >= 0 ? '+' : '') + chgPct.toFixed(2) + '%';
+      dayEl.style.color = chgPct >= 0 ? 'var(--green)' : 'var(--red)';
+      daySubEl.textContent = (chgAbs >= 0 ? '+' : '') + '$' + chgAbs.toFixed(2);
+      return;
     }
     dayEl.textContent = '—'; dayEl.style.color = 'var(--text-muted)';
   } catch(e) {
