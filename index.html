@@ -746,14 +746,23 @@ function updateStatStrip() {
   const posCount = HOLDINGS.length;
   const redCount = HOLDINGS.filter(h => h.pnl < 0).length;
 
-  // Unrealized P&L calculado desde HOLDINGS
-  let totalCost = 0, totalCurrent = 0;
+  // Unrealized P&L — usar valores calculados por Sheets si existen,
+  // si no (datos hardcodeados) recalcular desde cost/shares/pnl
+  let totalCost = 0, totalCurrent = 0, unrealUsdSum = 0;
   HOLDINGS.forEach(h => {
-    const basis = h.cost * h.shares;
-    totalCost += basis;
-    totalCurrent += basis * (1 + h.pnl / 100);
+    if (h.costBasis) {
+      totalCost += h.costBasis;
+      totalCurrent += h.currentVal || 0;
+      unrealUsdSum += h.unrealUsd || 0;
+    } else {
+      const basis = h.cost * h.shares;
+      totalCost += basis;
+      const cur = basis * (1 + h.pnl / 100);
+      totalCurrent += cur;
+      unrealUsdSum += cur - basis;
+    }
   });
-  const unrealUsd = totalCurrent - totalCost;
+  const unrealUsd = unrealUsdSum;
   const unrealPct = totalCost > 0 ? (unrealUsd / totalCost) * 100 : 0;
   const unrealSign = unrealPct >= 0 ? '+' : '';
   const unrealUsdSign = unrealUsd >= 0 ? '+' : '';
@@ -1146,7 +1155,10 @@ function parseAndRender(data) {
       const pnlSign = (r[7]||'').includes('(') ? -1 : 1;
       const pct = parseChileanNumber((r[8]||'0').replace('%',''));
       const shares = parseChileanNumber(r[1]||'0');
-      return { ticker, sector: r[9]||'—', shares, cost, pnl: pnlSign * Math.abs(pnlPct), pct };
+      const costBasis = parseChileanNumber(r[3]||'0');
+      const currentVal = parseChileanNumber(r[5]||'0');
+      const unrealUsd = parseChileanNumber(r[6]||'0');
+      return { ticker, sector: r[9]||'—', shares, cost, pnl: pnlSign * Math.abs(pnlPct), pct, costBasis, currentVal, unrealUsd };
     }).filter(h => h.ticker && h.cost > 0);
     if (parsed.length > 0) {
       HOLDINGS.length = 0;
