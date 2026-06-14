@@ -159,9 +159,14 @@
     border-radius: 12px;
     padding: 14px;
     display: flex;
+    flex-direction: column;
+    gap: 0;
+    transition: border-color 0.15s;
+  }
+  .holding-card-top {
+    display: flex;
     align-items: center;
     gap: 12px;
-    transition: border-color 0.15s;
   }
   .holding-card:active { border-color: var(--border-bright); background: var(--surface2); }
   .holding-card.red-border { border-left: 3px solid var(--red); }
@@ -192,6 +197,31 @@
   .holding-cost { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
   .holding-bar { height: 3px; background: var(--surface2); border-radius: 2px; margin-top: 10px; overflow: hidden; }
   .holding-bar-fill { height: 100%; border-radius: 2px; }
+  .holding-range-wrap { margin-top: 10px; }
+  .holding-range-bar {
+    position: relative; height: 4px;
+    background: var(--surface2); border-radius: 2px; overflow: visible;
+  }
+  .holding-range-red {
+    position: absolute; left: 0; top: 0; height: 100%;
+    background: rgba(255,77,109,0.3); border-radius: 2px 0 0 2px;
+  }
+  .holding-range-green {
+    position: absolute; top: 0; height: 100%;
+    background: rgba(0,229,160,0.2); border-radius: 0 2px 2px 0;
+  }
+  .holding-range-dot {
+    position: absolute; top: 50%;
+    width: 8px; height: 8px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    border: 1.5px solid rgba(255,255,255,0.5);
+    z-index: 1;
+  }
+  .holding-range-labels {
+    display: flex; justify-content: space-between;
+    margin-top: 4px; font-size: 10px; color: var(--text-muted);
+  }
+  .holding-range-no-data { margin-top: 8px; font-size: 10px; color: var(--text-dim); }
 
   /* SECTOR */
   .sector-section { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -838,6 +868,37 @@ function updateStatStrip() {
   });
 }
 
+// ===== ALERTAS MAP + RANGE BAR =====
+let ALERTAS_MAP = {};
+
+function rangeBarHtml(ticker) {
+  const a = ALERTAS_MAP[ticker];
+  if (!a) return '';
+  if (!a.objetivo || !a.stop || a.objetivo <= a.stop) {
+    return '<div class="holding-range-no-data">sin objetivo/stop definido</div>';
+  }
+  const { precioActual, objetivo, stop } = a;
+  const rawPos = (precioActual - stop) / (objetivo - stop) * 100;
+  const pos = Math.max(0, Math.min(100, rawPos));
+  const outLow = rawPos < 0, outHigh = rawPos > 100;
+  const dotBg = outLow ? 'var(--red)' : outHigh ? 'var(--green)' : '#fff';
+  const dotShadow = (outLow || outHigh)
+    ? `;box-shadow:0 0 0 2px ${outLow ? 'var(--red)' : 'var(--green)'},0 0 0 1px rgba(0,0,0,0.4)`
+    : ';box-shadow:0 0 0 1px rgba(0,0,0,0.4)';
+  const fmt = v => '$' + Math.round(v).toLocaleString('en');
+  return `<div class="holding-range-wrap">
+    <div class="holding-range-bar">
+      <div class="holding-range-red" style="width:${pos.toFixed(1)}%"></div>
+      <div class="holding-range-green" style="left:${pos.toFixed(1)}%;right:0"></div>
+      <div class="holding-range-dot" style="left:${pos.toFixed(1)}%;background:${dotBg}${dotShadow}"></div>
+    </div>
+    <div class="holding-range-labels">
+      <span>${fmt(stop)}</span>
+      <span>${fmt(objetivo)}</span>
+    </div>
+  </div>`;
+}
+
 // ===== RENDER =====
 function renderHoldings() {
   const list = document.getElementById('holdings-list');
@@ -847,18 +908,21 @@ function renderHoldings() {
     const borderClass = h.pnl <= -8 ? 'red-border' : h.pnl >= 15 ? 'green-border' : h.pnl < 0 ? 'amber-border' : '';
     const pnlLabel = `${isPos?'+':''}${h.pnl.toFixed(1)}%`;
     return `<div class="holding-card ${borderClass}" onclick="openDetail(HOLDINGS[${idx}])" style="cursor:pointer">
-      ${logoHtml(h.ticker)}
-      <div class="holding-left">
-        <div class="holding-ticker">${h.ticker}</div>
-        <div class="holding-sector">${h.sector}</div>
-        <div class="holding-bar">
-          <div class="holding-bar-fill" style="width:${barW}%;background:${isPos?'var(--green)':'var(--red)'}"></div>
+      <div class="holding-card-top">
+        ${logoHtml(h.ticker)}
+        <div class="holding-left">
+          <div class="holding-ticker">${h.ticker}</div>
+          <div class="holding-sector">${h.sector}</div>
+          <div class="holding-bar">
+            <div class="holding-bar-fill" style="width:${barW}%;background:${isPos?'var(--green)':'var(--red)'}"></div>
+          </div>
+        </div>
+        <div class="holding-right">
+          <div class="holding-pnl ${isPos?'pos':'neg'}">${pnlLabel}</div>
+          <div class="holding-cost">$${h.cost.toLocaleString('en',{maximumFractionDigits:2})} · ${h.pct}%</div>
         </div>
       </div>
-      <div class="holding-right">
-        <div class="holding-pnl ${isPos?'pos':'neg'}">${pnlLabel}</div>
-        <div class="holding-cost">$${h.cost.toLocaleString('en',{maximumFractionDigits:2})} · ${h.pct}%</div>
-      </div>
+      ${rangeBarHtml(h.ticker)}
     </div>`;
   }).join('');
 }
@@ -1166,7 +1230,7 @@ function parseChileanNumber(str) {
 }
 
 function parseAndRender(data) {
-  const { trades, holdings, dashboard } = data;
+  const { trades, holdings, dashboard, alertas } = data;
 
   // Parse Holdings
   if (holdings && holdings.length > 2) {
@@ -1219,6 +1283,20 @@ function parseAndRender(data) {
       const totalEl = document.querySelector('.stat-value:not(.green):not(.amber)');
       if (totalEl && totalVal) totalEl.textContent = totalVal;
     }
+  }
+
+  // Parse Alertas (Ticker=A, Precio Actual=D, Objetivo=G, Stop Loss=H)
+  if (alertas && alertas.length > 1) {
+    ALERTAS_MAP = {};
+    alertas.slice(1).forEach(r => {
+      const ticker = (r[0] || '').trim().toUpperCase();
+      if (!ticker || ticker === 'TICKER') return;
+      ALERTAS_MAP[ticker] = {
+        precioActual: parseChileanNumber(r[3] || '0'),
+        objetivo: parseChileanNumber(r[6] || '0'),
+        stop: parseChileanNumber(r[7] || '0'),
+      };
+    });
   }
 
   renderHoldings();
