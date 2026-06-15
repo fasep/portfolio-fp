@@ -251,13 +251,22 @@
   }
 
   /* SECTOR */
-  .sector-section { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
-  .sector-row { display: flex; align-items: center; gap: 10px; }
-  .sector-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .sector-name { font-size: 11px; color: var(--text-muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sector-track { width: 80px; height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+  .sector-section { padding: 0 12px; display: flex; flex-direction: column; gap: 8px; }
+  .sector-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 13px 14px 11px;
+  }
+  .sector-card-top {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px;
+  }
+  .sector-card-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .sector-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .sector-name { font-size: 14px; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sector-pct { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--text); flex-shrink: 0; }
+  .sector-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
   .sector-fill { height: 100%; border-radius: 3px; }
-  .sector-pct { font-size: 11px; color: var(--text); width: 30px; text-align: right; flex-shrink: 0; }
   .donut-wrap { display: flex; justify-content: center; padding: 20px 0 8px; }
 
   /* TRADES */
@@ -958,11 +967,15 @@ function renderHoldings() {
 function renderSectors() {
   const list = document.getElementById('sector-list');
   list.innerHTML = SECTORS.map(s => `
-    <div class="sector-row">
-      <div class="sector-dot" style="background:${s.color}"></div>
-      <div class="sector-name">${s.name}</div>
+    <div class="sector-card">
+      <div class="sector-card-top">
+        <div class="sector-card-left">
+          <div class="sector-dot" style="background:${s.color}"></div>
+          <div class="sector-name">${s.name}</div>
+        </div>
+        <div class="sector-pct">${s.pct}%</div>
+      </div>
       <div class="sector-track"><div class="sector-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
-      <div class="sector-pct">${s.pct}%</div>
     </div>`).join('');
   drawDonut();
 }
