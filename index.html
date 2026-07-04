@@ -265,9 +265,10 @@
   .sector-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .sector-name { font-size: 14px; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sector-pct { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--text); flex-shrink: 0; }
-  .sector-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .sector-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 9px; }
   .sector-fill { height: 100%; border-radius: 3px; }
-  .donut-wrap { display: flex; justify-content: center; padding: 20px 0 8px; }
+  .sector-tickers { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sector-ticker { font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); background: var(--surface2); border-radius: 6px; padding: 2px 7px; }
 
   /* TRADES */
   .trades-list { display: flex; flex-direction: column; gap: 6px; padding: 0 12px; }
@@ -597,9 +598,6 @@
       <h1>Sectores</h1>
       <div class="sub" style="margin-top:2px">Distribución por tema de inversión</div>
     </div>
-    <div class="donut-wrap">
-      <canvas id="donut-chart" width="200" height="200"></canvas>
-    </div>
     <div class="section-hdr">Peso por sector</div>
     <div class="sector-section" id="sector-list"></div>
   </div>
@@ -818,8 +816,9 @@ function computeSectors() {
     const name = (h.sector && h.sector !== '—') ? h.sector : (TICKER_SECTOR[h.ticker] || h.ticker);
     const color = sectorColor(name);
     const pct = h.pct || (totalVal > 0 ? (h.currentVal / totalVal * 100) : 0);
-    if (!map[name]) map[name] = { name, color, pct: 0 };
+    if (!map[name]) map[name] = { name, color, pct: 0, tickers: [] };
     map[name].pct += pct;
+    map[name].tickers.push(h.ticker);
   });
   return Object.values(map)
     .map(s => ({ ...s, pct: Math.round(s.pct * 10) / 10 }))
@@ -1134,8 +1133,8 @@ function renderSectors() {
         <div class="sector-pct">${s.pct}%</div>
       </div>
       <div class="sector-track"><div class="sector-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
+      <div class="sector-tickers">${s.tickers.map(t => `<span class="sector-ticker">${t}</span>`).join('')}</div>
     </div>`).join('');
-  drawDonut(sectors);
 }
 
 function drawDonut(sectors) {
@@ -1240,7 +1239,6 @@ function showScreen(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   btn.classList.add('active');
-  if(name==='sectores') setTimeout(renderSectors,30);
 }
 
 function goAI(q) {
