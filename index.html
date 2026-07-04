@@ -1240,7 +1240,7 @@ function showScreen(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   btn.classList.add('active');
-  if(name==='sectores') setTimeout(drawDonut,30);
+  if(name==='sectores') setTimeout(renderSectors,30);
 }
 
 function goAI(q) {
