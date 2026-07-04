@@ -770,14 +770,34 @@ const TRADES = [
   {date:'05-may',ticker:'ADBE',type:'buy',amount:'$254.20',pnl:null},
 ];
 
-const SECTORS = [
-  {name:'Tech / Cloud / SaaS',pct:42,color:'#4d9fff'},
-  {name:'Semiconductores / AI',pct:22,color:'#a78bfa'},
-  {name:'Energía / Nuclear',pct:19,color:'#ffb020'},
-  {name:'Latam / Fintech',pct:9,color:'#00e5a0'},
-  {name:'Biotech / Salud',pct:6,color:'#ff4d6d'},
-  {name:'Cybersecurity',pct:2,color:'#ff8c42'},
-];
+const SECTOR_MAP = {
+  'Tech / Cloud':      { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
+  'Tech':              { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
+  'Tech / Networking': { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
+  'SaaS':              { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
+  'AI / Semis':        { group: 'Semiconductores / AI', color: '#a78bfa' },
+  'Semiconductores':   { group: 'Semiconductores / AI', color: '#a78bfa' },
+  'Energía / Nuclear': { group: 'Energía / Nuclear',    color: '#ffb020' },
+  'Energía':           { group: 'Energía / Nuclear',    color: '#ffb020' },
+  'Uranio / Nuclear':  { group: 'Energía / Nuclear',    color: '#ffb020' },
+  'Latam / eComm':     { group: 'Latam / Fintech',      color: '#00e5a0' },
+  'Fintech':           { group: 'Latam / Fintech',      color: '#00e5a0' },
+  'Latam / Forestal':  { group: 'Latam / Fintech',      color: '#00e5a0' },
+  'Biotech / Salud':   { group: 'Biotech / Salud',      color: '#ff4d6d' },
+  'Cybersecurity':     { group: 'Cybersecurity',        color: '#ff8c42' },
+};
+
+function computeSectors() {
+  const map = {};
+  HOLDINGS.forEach(h => {
+    const info = SECTOR_MAP[h.sector] || { group: h.sector || 'Otro', color: '#6b6b80' };
+    if (!map[info.group]) map[info.group] = { name: info.group, color: info.color, pct: 0 };
+    map[info.group].pct += h.pct || 0;
+  });
+  return Object.values(map)
+    .map(s => ({ ...s, pct: Math.round(s.pct * 10) / 10 }))
+    .sort((a, b) => b.pct - a.pct);
+}
 
 function buildAlerts() {
   const RED_MSGS = [
@@ -1075,8 +1095,9 @@ function renderHoldings() {
 }
 
 function renderSectors() {
+  const sectors = computeSectors();
   const list = document.getElementById('sector-list');
-  list.innerHTML = SECTORS.map(s => `
+  list.innerHTML = sectors.map(s => `
     <div class="sector-card">
       <div class="sector-card-top">
         <div class="sector-card-left">
@@ -1087,17 +1108,17 @@ function renderSectors() {
       </div>
       <div class="sector-track"><div class="sector-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
     </div>`).join('');
-  drawDonut();
+  drawDonut(sectors);
 }
 
-function drawDonut() {
+function drawDonut(sectors) {
   const canvas = document.getElementById('donut-chart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const cx=100,cy=100,r=80,inner=50;
   let start = -Math.PI/2;
   ctx.clearRect(0,0,200,200);
-  SECTORS.forEach(s => {
+  sectors.forEach(s => {
     const angle = (s.pct/100)*Math.PI*2;
     ctx.beginPath(); ctx.moveTo(cx,cy);
     ctx.arc(cx,cy,r,start,start+angle);
@@ -1110,7 +1131,7 @@ function drawDonut() {
   ctx.fillStyle='#0a0a0f'; ctx.fill();
   ctx.fillStyle='#f0f0f5';
   ctx.font='bold 22px Syne,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('16',cx,cy-9);
+  ctx.fillText(HOLDINGS.length, cx, cy-9);
   ctx.font='9px DM Mono,monospace'; ctx.fillStyle='#6b6b80';
   ctx.fillText('posiciones',cx,cy+10);
 }
