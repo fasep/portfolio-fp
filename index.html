@@ -496,9 +496,51 @@
   .detail-chart-wrap { padding: 0 16px 20px; }
   .detail-chart-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
   .detail-chart-frame { width: 100%; height: 230px; border: none; border-radius: 12px; display: block; background: var(--surface2); }
+
+  /* LOGIN */
+  #login-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-box {
+    width: 100%; max-width: 340px; margin: 20px;
+    padding: 32px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 16px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .login-title { font-family: var(--font-display); font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .login-sub { font-size: 12px; color: var(--text-muted); }
+  .login-input {
+    width: 100%; padding: 12px 14px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: var(--font-mono); font-size: 16px; outline: none;
+  }
+  .login-input:focus { border-color: var(--green); }
+  .login-error { font-size: 11px; color: var(--red); display: none; }
+  .login-btn {
+    padding: 12px; border: none; border-radius: 10px;
+    background: var(--green); color: var(--bg);
+    font-family: var(--font-display); font-size: 14px; font-weight: 700;
+    letter-spacing: 0.03em; cursor: pointer;
+  }
+  .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-title">Portfolio FP</div>
+    <div class="login-sub">Introduce la contraseña para continuar</div>
+    <input id="login-pwd" type="password" class="login-input" placeholder="Contraseña" autocomplete="current-password">
+    <div id="login-error" class="login-error"></div>
+    <button id="login-btn" class="login-btn" onclick="handleLoginSubmit()">Entrar</button>
+  </div>
+</div>
+
 <div class="app">
 
   <!-- ===== SCREEN: HOLDINGS ===== -->
@@ -814,10 +856,78 @@ INSTRUCCIONES:
 - Si recomiendas entrada: precio sugerido + stop
 - Sin disclaimers genéricos`;
 
-// 🔑 CONFIGURACION DEL PROXY (Cloudflare Worker)
-// Reemplaza con tu Worker URL y password una vez desplegado
+// ===== CONFIGURACION DEL PROXY =====
 const WORKER_URL = 'https://portfolio-fp-proxy.analitico1.workers.dev';
-const APP_PASSWORD = '010416gS';
+
+// ===== AUTH =====
+const AUTH_KEY = 'fp_pwd';
+
+function getPassword() { return localStorage.getItem(AUTH_KEY); }
+function savePassword(pwd) { localStorage.setItem(AUTH_KEY, pwd); }
+function clearPassword() { localStorage.removeItem(AUTH_KEY); }
+
+function showLogin(errorMsg) {
+  const overlay = document.getElementById('login-overlay');
+  overlay.style.display = 'flex';
+  const err = document.getElementById('login-error');
+  if (errorMsg) { err.textContent = errorMsg; err.style.display = 'block'; }
+  else { err.style.display = 'none'; }
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').style.display = 'none';
+}
+
+async function handleLoginSubmit() {
+  const input = document.getElementById('login-pwd');
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  const pwd = input.value.trim();
+  if (!pwd) return;
+  btn.disabled = true;
+  btn.textContent = 'Verificando…';
+  err.style.display = 'none';
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-App-Password': pwd, 'X-Action': 'ping' },
+      body: '{}'
+    });
+    if (res.status !== 401) {
+      savePassword(pwd);
+      hideLogin();
+      loadFromSheets();
+    } else {
+      err.textContent = 'Contraseña incorrecta';
+      err.style.display = 'block';
+      input.value = '';
+      input.focus();
+    }
+  } catch(e) {
+    err.textContent = 'Error de conexión';
+    err.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Entrar';
+}
+
+document.getElementById('login-pwd').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleLoginSubmit();
+});
+
+async function apiFetch(extraHeaders, body) {
+  const res = await fetch(WORKER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-App-Password': getPassword() || '', ...extraHeaders },
+    body: JSON.stringify(body)
+  });
+  if (res.status === 401) {
+    clearPassword();
+    showLogin('Sesión expirada. Vuelve a ingresar.');
+    throw new Error('Unauthorized');
+  }
+  return res;
+}
 
 const TICKER_SYMBOL = {
   'ORACLE':'ORCL','APPLE':'AAPL',
@@ -1161,19 +1271,12 @@ async function sendAI() {
   chatHistory.push({role:'user', content: q});
 
   try {
-    const res = await fetch(WORKER_URL, {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'X-App-Password': APP_PASSWORD
-      },
-      body: JSON.stringify({
-        model:'claude-sonnet-4-5',
-        max_tokens:1000,
-        system: SYSTEM_PROMPT,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages: chatHistory
-      })
+    const res = await apiFetch({}, {
+      model:'claude-sonnet-4-5',
+      max_tokens:1000,
+      system: SYSTEM_PROMPT,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages: chatHistory
     });
     const data = await res.json();
     searchBubble.remove();
@@ -1225,15 +1328,7 @@ document.getElementById('ai-input').addEventListener('keydown', e=>{
 async function loadFromSheets() {
   showLoadingState();
   try {
-    const res = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-App-Password': APP_PASSWORD,
-        'X-Action': 'sheets'
-      },
-      body: JSON.stringify({})
-    });
+    const res = await apiFetch({ 'X-Action': 'sheets' }, {});
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
@@ -1396,15 +1491,7 @@ async function fetchDayReturn(h) {
   const dayEl = document.getElementById('detail-pnl-day');
   const daySubEl = document.getElementById('detail-pnl-day-sub');
   try {
-    const res = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-App-Password': APP_PASSWORD,
-        'X-Action': 'price'
-      },
-      body: JSON.stringify({ symbol: yfSym(h.ticker) })
-    });
+    const res = await apiFetch({ 'X-Action': 'price' }, { symbol: yfSym(h.ticker) });
     const data = await res.json();
     if (data.prev && data.curr) {
       const chgPct = ((data.curr - data.prev) / data.prev) * 100;
@@ -1472,16 +1559,12 @@ async function generateDailyBriefing(force) {
   const today = getBriefingDate();
   showBriefingLoading();
   try {
-    const res = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-App-Password': APP_PASSWORD },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 350,
-        system: 'Eres un analista senior de renta variable. Responde en español. Máximo 4 líneas, sin markdown, sin asteriscos, sin disclaimers genéricos.',
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{ role: 'user', content: buildBriefingPrompt() }]
-      })
+    const res = await apiFetch({}, {
+      model: 'claude-sonnet-4-5',
+      max_tokens: 350,
+      system: 'Eres un analista senior de renta variable. Responde en español. Máximo 4 líneas, sin markdown, sin asteriscos, sin disclaimers genéricos.',
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: buildBriefingPrompt() }]
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
@@ -1523,7 +1606,12 @@ document.getElementById('today-badge').textContent =
 
 // INIT
 loadChatFromStorage();
-loadFromSheets();
+if (getPassword()) {
+  hideLogin();
+  loadFromSheets();
+} else {
+  showLogin();
+}
 </script>
 </body>
 </html>

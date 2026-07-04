@@ -40,7 +40,9 @@ export default {
     // ── Routing por acción ──────────────────────────────────────────
     const action = request.headers.get('X-Action') || 'ai';
 
-    if (action === 'sheets') {
+    if (action === 'ping') {
+      return respond(200, { ok: true });
+    } else if (action === 'sheets') {
       return handleSheets(request, env);
     } else if (action === 'price') {
       return handlePrice(request, env);
