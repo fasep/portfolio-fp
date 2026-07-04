@@ -770,31 +770,44 @@ const TRADES = [
   {date:'05-may',ticker:'ADBE',type:'buy',amount:'$254.20',pnl:null},
 ];
 
-const SECTOR_MAP = {
-  'Tech / Cloud':      { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
-  'Tech':              { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
-  'Tech / Networking': { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
-  'SaaS':              { group: 'Tech / Cloud / SaaS', color: '#4d9fff' },
-  'AI / Semis':        { group: 'Semiconductores / AI', color: '#a78bfa' },
-  'Semiconductores':   { group: 'Semiconductores / AI', color: '#a78bfa' },
-  'Energía / Nuclear': { group: 'Energía / Nuclear',    color: '#ffb020' },
-  'Energía':           { group: 'Energía / Nuclear',    color: '#ffb020' },
-  'Uranio / Nuclear':  { group: 'Energía / Nuclear',    color: '#ffb020' },
-  'Latam / eComm':     { group: 'Latam / Fintech',      color: '#00e5a0' },
-  'Fintech':           { group: 'Latam / Fintech',      color: '#00e5a0' },
-  'Latam / Forestal':  { group: 'Latam / Fintech',      color: '#00e5a0' },
-  'Biotech / Salud':   { group: 'Biotech / Salud',      color: '#ff4d6d' },
-  'Cybersecurity':     { group: 'Cybersecurity',        color: '#ff8c42' },
+// Colores fijos por nombre de sector (coincide con lo que venga de Sheets en columna J)
+const SECTOR_COLORS = {
+  'Tech / Cloud / SaaS':  '#4d9fff',
+  'Semiconductores / AI': '#a78bfa',
+  'Energía / Nuclear':    '#ffb020',
+  'Latam / Fintech':      '#00e5a0',
+  'Biotech / Salud':      '#ff4d6d',
+  'Cybersecurity':        '#ff8c42',
+  // variantes alternativas por si Sheets usa nombres distintos
+  'Tech / Cloud':         '#4d9fff',
+  'Tech':                 '#4d9fff',
+  'SaaS':                 '#4d9fff',
+  'AI / Semis':           '#a78bfa',
+  'Semiconductores':      '#a78bfa',
+  'Energía':              '#ffb020',
+  'Uranio / Nuclear':     '#ffb020',
+  'Latam / eComm':        '#00e5a0',
+  'Fintech':              '#00e5a0',
+  'Latam / Forestal':     '#00e5a0',
+  'Cybersecurity':        '#ff8c42',
 };
+
+const SECTOR_PALETTE = ['#4d9fff','#a78bfa','#ffb020','#00e5a0','#ff4d6d','#ff8c42','#e879f9','#34d399','#fb923c','#60a5fa'];
+function sectorColor(name) {
+  if (SECTOR_COLORS[name]) return SECTOR_COLORS[name];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
+  return SECTOR_PALETTE[hash % SECTOR_PALETTE.length];
+}
 
 // Fallback sector por ticker cuando Sheets no tiene columna de sector
 const TICKER_SECTOR = {
-  'ORACLE':'Tech / Cloud', 'NVDA':'AI / Semis', 'APPLE':'Tech',
-  'ANET':'Tech / Networking', 'CRM':'SaaS', 'WDAY':'SaaS',
-  'MU':'Semiconductores', 'AMBA':'Semiconductores',
-  'VST':'Energía / Nuclear', 'TLN':'Energía',
-  'NXE':'Uranio / Nuclear', 'CCJ':'Uranio / Nuclear',
-  'MELI':'Latam / eComm', 'SOFI':'Fintech', 'CMPC':'Latam / Forestal',
+  'ORACLE':'Tech / Cloud / SaaS', 'NVDA':'Semiconductores / AI', 'APPLE':'Tech / Cloud / SaaS',
+  'ANET':'Tech / Cloud / SaaS', 'CRM':'Tech / Cloud / SaaS', 'WDAY':'Tech / Cloud / SaaS',
+  'MU':'Semiconductores / AI', 'AMBA':'Semiconductores / AI',
+  'VST':'Energía / Nuclear', 'TLN':'Energía / Nuclear',
+  'NXE':'Energía / Nuclear', 'CCJ':'Energía / Nuclear',
+  'MELI':'Latam / Fintech', 'SOFI':'Latam / Fintech', 'CMPC':'Latam / Fintech',
   'ZS':'Cybersecurity', 'VRDN':'Biotech / Salud',
 };
 
@@ -802,11 +815,11 @@ function computeSectors() {
   const totalVal = HOLDINGS.reduce((s, h) => s + (h.currentVal || 0), 0);
   const map = {};
   HOLDINGS.forEach(h => {
-    const rawSector = (h.sector && h.sector !== '—') ? h.sector : (TICKER_SECTOR[h.ticker] || h.ticker);
-    const info = SECTOR_MAP[rawSector] || { group: rawSector, color: '#6b6b80' };
+    const name = (h.sector && h.sector !== '—') ? h.sector : (TICKER_SECTOR[h.ticker] || h.ticker);
+    const color = sectorColor(name);
     const pct = h.pct || (totalVal > 0 ? (h.currentVal / totalVal * 100) : 0);
-    if (!map[info.group]) map[info.group] = { name: info.group, color: info.color, pct: 0 };
-    map[info.group].pct += pct;
+    if (!map[name]) map[name] = { name, color, pct: 0 };
+    map[name].pct += pct;
   });
   return Object.values(map)
     .map(s => ({ ...s, pct: Math.round(s.pct * 10) / 10 }))
@@ -1129,25 +1142,29 @@ function drawDonut(sectors) {
   const canvas = document.getElementById('donut-chart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const cx=100,cy=100,r=80,inner=50;
-  let start = -Math.PI/2;
+  const cx=100, cy=100, r=82, inner=52, gap=0.025;
   ctx.clearRect(0,0,200,200);
+  let start = -Math.PI/2;
   sectors.forEach(s => {
     const angle = (s.pct/100)*Math.PI*2;
-    ctx.beginPath(); ctx.moveTo(cx,cy);
-    ctx.arc(cx,cy,r,start,start+angle);
+    if (angle < 0.001) return;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, start + gap/2, start + angle - gap/2);
+    ctx.arc(cx, cy, inner, start + angle - gap/2, start + gap/2, true);
     ctx.closePath();
-    ctx.fillStyle=s.color; ctx.globalAlpha=0.85; ctx.fill();
-    start+=angle;
+    ctx.fillStyle = s.color;
+    ctx.globalAlpha = 0.9;
+    ctx.fill();
+    start += angle;
   });
-  ctx.globalAlpha=1;
-  ctx.beginPath(); ctx.arc(cx,cy,inner,0,Math.PI*2);
-  ctx.fillStyle='#0a0a0f'; ctx.fill();
-  ctx.fillStyle='#f0f0f5';
-  ctx.font='bold 22px Syne,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(HOLDINGS.length, cx, cy-9);
-  ctx.font='9px DM Mono,monospace'; ctx.fillStyle='#6b6b80';
-  ctx.fillText('posiciones',cx,cy+10);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#0a0a0f';
+  ctx.beginPath(); ctx.arc(cx, cy, inner - 1, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#f0f0f5';
+  ctx.font = 'bold 22px Syne,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(HOLDINGS.length, cx, cy - 9);
+  ctx.font = '9px DM Mono,monospace'; ctx.fillStyle = '#6b6b80';
+  ctx.fillText('posiciones', cx, cy + 10);
 }
 
 const MONTH_VAL = {ene:0,jan:0,feb:1,mar:2,abr:3,apr:3,may:4,jun:5,jul:6,ago:7,aug:7,sep:8,oct:9,nov:10,dic:11,dec:11};
