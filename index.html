@@ -787,12 +787,26 @@ const SECTOR_MAP = {
   'Cybersecurity':     { group: 'Cybersecurity',        color: '#ff8c42' },
 };
 
+// Fallback sector por ticker cuando Sheets no tiene columna de sector
+const TICKER_SECTOR = {
+  'ORACLE':'Tech / Cloud', 'NVDA':'AI / Semis', 'APPLE':'Tech',
+  'ANET':'Tech / Networking', 'CRM':'SaaS', 'WDAY':'SaaS',
+  'MU':'Semiconductores', 'AMBA':'Semiconductores',
+  'VST':'Energía / Nuclear', 'TLN':'Energía',
+  'NXE':'Uranio / Nuclear', 'CCJ':'Uranio / Nuclear',
+  'MELI':'Latam / eComm', 'SOFI':'Fintech', 'CMPC':'Latam / Forestal',
+  'ZS':'Cybersecurity', 'VRDN':'Biotech / Salud',
+};
+
 function computeSectors() {
+  const totalVal = HOLDINGS.reduce((s, h) => s + (h.currentVal || 0), 0);
   const map = {};
   HOLDINGS.forEach(h => {
-    const info = SECTOR_MAP[h.sector] || { group: h.sector || 'Otro', color: '#6b6b80' };
+    const rawSector = (h.sector && h.sector !== '—') ? h.sector : (TICKER_SECTOR[h.ticker] || h.ticker);
+    const info = SECTOR_MAP[rawSector] || { group: rawSector, color: '#6b6b80' };
+    const pct = h.pct || (totalVal > 0 ? (h.currentVal / totalVal * 100) : 0);
     if (!map[info.group]) map[info.group] = { name: info.group, color: info.color, pct: 0 };
-    map[info.group].pct += h.pct || 0;
+    map[info.group].pct += pct;
   });
   return Object.values(map)
     .map(s => ({ ...s, pct: Math.round(s.pct * 10) / 10 }))
