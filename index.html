@@ -95,8 +95,8 @@
   .stat-hero-right { text-align: right; }
   .stat-sub-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
   }
   .stat-label { font-size: 9px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
   .stat-value { font-family: var(--font-display); font-size: 16px; font-weight: 700; line-height: 1; }
@@ -580,6 +580,11 @@
             <div class="stat-sub" id="stat-real-sub">100% win</div>
           </div>
           <div class="stat-card">
+            <div class="stat-label">Hoy</div>
+            <div class="stat-value" id="stat-day-pct">…</div>
+            <div class="stat-sub" id="stat-day-usd"></div>
+          </div>
+          <div class="stat-card">
             <div class="stat-label">Pos.</div>
             <div class="stat-value amber" id="stat-pos-count">17</div>
             <div class="stat-sub" id="stat-pos-sub">2 en rojo</div>
@@ -1061,6 +1066,45 @@ function updateStatStrip() {
   });
 }
 
+// ===== RENTABILIDAD TOTAL DEL DIA =====
+async function updateDailyReturn() {
+  const dayPctEl = document.getElementById('stat-day-pct');
+  const dayUsdEl = document.getElementById('stat-day-usd');
+  if (!dayPctEl) return;
+  dayPctEl.textContent = '…';
+  dayPctEl.className = 'stat-value';
+  dayUsdEl.textContent = '';
+
+  const uniqueTickers = [...new Set(HOLDINGS.map(h => h.ticker))];
+  const prices = {};
+  await Promise.all(uniqueTickers.map(async ticker => {
+    try {
+      const res = await apiFetch({ 'X-Action': 'price' }, { symbol: yfSym(ticker) });
+      const data = await res.json();
+      if (data.prev && data.curr) prices[ticker] = data;
+    } catch(e) {}
+  }));
+
+  let dayChangeUsd = 0, prevTotal = 0;
+  HOLDINGS.forEach(h => {
+    const p = prices[h.ticker];
+    if (!p) return;
+    dayChangeUsd += (p.curr - p.prev) * h.shares;
+    prevTotal += p.prev * h.shares;
+  });
+
+  if (prevTotal === 0) {
+    dayPctEl.textContent = '—';
+    return;
+  }
+
+  const dayPct = (dayChangeUsd / prevTotal) * 100;
+  const sign = dayChangeUsd >= 0 ? '+' : '-';
+  dayPctEl.textContent = `${sign}${Math.abs(dayPct).toFixed(2)}%`;
+  dayPctEl.className = `stat-value ${dayChangeUsd >= 0 ? 'green' : 'red'}`;
+  dayUsdEl.textContent = `${sign}$${Math.abs(dayChangeUsd).toFixed(0)}`;
+}
+
 // ===== ALERTAS MAP + RANGE BAR =====
 let ALERTAS_MAP = {};
 
@@ -1389,10 +1433,12 @@ async function loadFromSheets() {
     renderHoldings();
     renderTrades();
     renderAlerts();
+    updateStatStrip();
   }
   renderSectors();
   renderChips();
   loadDailyBriefing();
+  updateDailyReturn();
 }
 
 function showLoadingState() {
