@@ -95,8 +95,8 @@
   .stat-hero-right { text-align: right; }
   .stat-sub-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
   }
   .stat-label { font-size: 9px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
   .stat-value { font-family: var(--font-display); font-size: 16px; font-weight: 700; line-height: 1; }
@@ -570,11 +570,6 @@
         <!-- Sub-row: 3 stats -->
         <div class="stat-sub-row">
           <div class="stat-card">
-            <div class="stat-label">No real.</div>
-            <div class="stat-value green" id="stat-unreal-pct2">+10.3%</div>
-            <div class="stat-sub" id="stat-unreal-usd2">+$338</div>
-          </div>
-          <div class="stat-card">
             <div class="stat-label">Realiz.</div>
             <div class="stat-value green" id="stat-real-val">+$85</div>
             <div class="stat-sub" id="stat-real-sub">100% win</div>
@@ -1035,14 +1030,10 @@ function updateStatStrip() {
   if (tv) tv.textContent = totalFmt;
 
   const unrealLabel = `no realizado · ${unrealUsdSign}$${Math.abs(unrealUsd).toFixed(0)}`;
-  ['stat-unreal-pct', 'stat-unreal-pct2'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.textContent = `${unrealSign}${unrealPct.toFixed(1)}%`; el.className = `stat-value ${unrealPct >= 0 ? 'green' : 'red'}`; }
-  });
+  const up = document.getElementById('stat-unreal-pct');
+  if (up) { up.textContent = `${unrealSign}${unrealPct.toFixed(1)}%`; up.className = `stat-value ${unrealPct >= 0 ? 'green' : 'red'}`; }
   const uu = document.getElementById('stat-unreal-usd');
   if (uu) uu.textContent = unrealLabel;
-  const uu2 = document.getElementById('stat-unreal-usd2');
-  if (uu2) uu2.textContent = `${unrealUsdSign}$${Math.abs(unrealUsd).toFixed(0)}`;
 
   const rv = document.getElementById('stat-real-val');
   if (rv) {
