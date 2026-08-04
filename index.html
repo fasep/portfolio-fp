@@ -243,33 +243,6 @@
   }
   .holding-range-no-data { margin-top: 8px; font-size: 10px; color: var(--text-dim); }
 
-  /* BRIEFING CARD */
-  .briefing-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--green);
-    border-radius: 12px;
-    padding: 14px;
-  }
-  .briefing-header {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
-  }
-  .briefing-icon { color: var(--green); font-size: 13px; line-height: 1; }
-  .briefing-title {
-    flex: 1; font-size: 10px; color: var(--text-muted);
-    letter-spacing: 0.08em; text-transform: uppercase;
-  }
-  .briefing-refresh {
-    background: none; border: 1px solid var(--border); border-radius: 20px;
-    color: var(--text-muted); font-family: var(--font-mono); font-size: 10px;
-    padding: 2px 8px; cursor: pointer; letter-spacing: 0.04em; transition: color 0.15s, border-color 0.15s;
-  }
-  .briefing-refresh:active { color: var(--green); border-color: var(--green); }
-  .briefing-body { font-size: 12px; line-height: 1.7; color: var(--text); }
-  .briefing-loading {
-    font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;
-  }
-
   /* SECTOR */
   .sector-section { padding: 0 12px; display: flex; flex-direction: column; gap: 8px; }
   .sector-card {
@@ -628,13 +601,7 @@
       <canvas id="portfolio-history-chart" width="600" height="180"></canvas>
       <div class="realized-chart-empty" id="portfolio-history-empty" style="display:none">Acumulando datos desde hoy — volvé mañana para ver la evolución</div>
     </div>
-    <div class="section-hdr">Rentabilidad realizada — histórico</div>
-    <div class="realized-chart-wrap">
-      <canvas id="realized-chart" width="600" height="180"></canvas>
-      <div class="realized-chart-empty" id="realized-chart-empty" style="display:none">Sin ventas registradas todavía</div>
-    </div>
     <div class="section-hdr">Holdings — toca para analizar</div>
-    <div id="daily-briefing-wrap" style="padding:0 12px 8px;"></div>
     <div class="holdings-list" id="holdings-list"></div>
   </div>
 
@@ -1347,16 +1314,6 @@ function drawTimeSeriesChart(canvas, emptyEl, points, formatValue) {
   ctx.fillText(formatValue(lastVal), W - padR, 16);
 }
 
-function renderRealizedChart() {
-  const canvas = document.getElementById('realized-chart');
-  const emptyEl = document.getElementById('realized-chart-empty');
-  const sells = TRADES.filter(t => t.type === 'sell' && t.pnl !== null)
-    .sort((a, b) => tradeDateVal(a.date) - tradeDateVal(b.date));
-  let cum = 0;
-  const points = sells.map(t => ({ label: t.date, value: (cum += t.pnl) }));
-  drawTimeSeriesChart(canvas, emptyEl, points, v => `${v >= 0 ? '+' : '-'}$${Math.abs(v).toFixed(0)}`);
-}
-
 // ===== RENTABILIDAD TOTAL DEL PORTAFOLIO — HISTÓRICO =====
 // No hay historial de valores pasados: se toma una foto diaria (localStorage)
 // cada vez que se cargan los stats, y el gráfico crece día a día desde hoy.
@@ -1595,13 +1552,11 @@ async function loadFromSheets() {
     // Fallback a datos hardcodeados
     renderHoldings();
     renderTrades();
-    renderRealizedChart();
     renderAlerts();
     updateStatStrip();
   }
   renderSectors();
   renderChips();
-  loadDailyBriefing();
   updateDailyReturn();
 }
 
@@ -1698,7 +1653,6 @@ function parseAndRender(data) {
 
   renderHoldings();
   renderTrades();
-  renderRealizedChart();
   updateStatStrip();
   renderAlerts();
 }
@@ -1766,97 +1720,6 @@ async function fetchDayReturn(h) {
   } catch(e) {
     dayEl.textContent = '—'; dayEl.style.color = 'var(--text-muted)';
   }
-}
-
-// ===== DAILY BRIEFING =====
-const BRIEFING_KEY = 'dailyBriefing';
-
-function getBriefingDate() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-
-function formatBriefingDateLabel(dateStr) {
-  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-  const [y, m, day] = dateStr.split('-');
-  return `${day}-${meses[parseInt(m)-1]}-${y}`;
-}
-
-function buildBriefingPrompt() {
-  const tickers = HOLDINGS.map(h => h.ticker).join(', ');
-  return `Genera un briefing de máximo 4 líneas sobre el estado del portafolio HOY. Usa web search para detectar movimientos relevantes, noticias o earnings próximos de estos tickers: ${tickers}. Tono directo, sin relleno, sin asteriscos ni markdown. Prioriza lo accionable: qué mirar hoy. Portafolio en USD.`;
-}
-
-function showBriefingLoading() {
-  const wrap = document.getElementById('daily-briefing-wrap');
-  if (!wrap) return;
-  wrap.innerHTML = `<div class="briefing-card">
-    <div class="briefing-header">
-      <span class="briefing-icon">◈</span>
-      <span class="briefing-title">Briefing del día</span>
-    </div>
-    <div class="briefing-loading">
-      <span class="spin" style="border-color:rgba(0,229,160,0.2);border-top-color:var(--green)"></span>
-      Generando briefing del día…
-    </div>
-  </div>`;
-}
-
-function showBriefingCard(text, dateStr) {
-  const wrap = document.getElementById('daily-briefing-wrap');
-  if (!wrap) return;
-  const label = formatBriefingDateLabel(dateStr);
-  wrap.innerHTML = `<div class="briefing-card">
-    <div class="briefing-header">
-      <span class="briefing-icon">◈</span>
-      <span class="briefing-title">Briefing del día · ${label}</span>
-      <button class="briefing-refresh" onclick="generateDailyBriefing(true)">↻ regenerar</button>
-    </div>
-    <div class="briefing-body">${text.replace(/\n/g,'<br>')}</div>
-  </div>`;
-}
-
-async function generateDailyBriefing(force) {
-  const today = getBriefingDate();
-  showBriefingLoading();
-  try {
-    const res = await apiFetch({}, {
-      model: 'claude-sonnet-4-5',
-      max_tokens: 350,
-      system: 'Eres un analista senior de renta variable. Responde en español. Máximo 4 líneas, sin markdown, sin asteriscos, sin disclaimers genéricos.',
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: buildBriefingPrompt() }]
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-    if (text) {
-      try { localStorage.setItem(BRIEFING_KEY, JSON.stringify({ date: today, text })); } catch(e) {}
-      showBriefingCard(text, today);
-    }
-  } catch(e) {
-    const wrap = document.getElementById('daily-briefing-wrap');
-    if (wrap) wrap.innerHTML = `<div class="briefing-card">
-      <div class="briefing-header">
-        <span class="briefing-icon">◈</span>
-        <span class="briefing-title">Briefing del día · ${formatBriefingDateLabel(today)}</span>
-        <button class="briefing-refresh" onclick="generateDailyBriefing(true)">↻ reintentar</button>
-      </div>
-      <div class="briefing-body" style="color:var(--text-muted)">No se pudo generar el briefing.</div>
-    </div>`;
-  }
-}
-
-function loadDailyBriefing() {
-  const today = getBriefingDate();
-  try {
-    const cached = JSON.parse(localStorage.getItem(BRIEFING_KEY) || 'null');
-    if (cached && cached.date === today && cached.text) {
-      showBriefingCard(cached.text, today);
-      return;
-    }
-  } catch(e) {}
-  generateDailyBriefing(false);
 }
 
 // Fecha dinámica en badge
