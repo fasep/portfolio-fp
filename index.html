@@ -104,6 +104,8 @@
   .stat-value.amber { color: var(--amber); }
   .stat-value.red { color: var(--red); }
   .stat-sub { font-size: 9px; color: var(--text-muted); margin-top: 3px; }
+  .stat-green-card { display: flex; align-items: center; justify-content: space-between; }
+  .stat-green-card .stat-value { font-size: 18px; }
 
   /* BOTTOM NAV */
   .bottom-nav {
@@ -585,6 +587,14 @@
             <div class="stat-sub" id="stat-pos-sub">2 en rojo</div>
           </div>
         </div>
+        <!-- Suma de rentabilidad positiva (solo posiciones en verde) -->
+        <div class="stat-card stat-green-card">
+          <div>
+            <div class="stat-label">Suma en verde</div>
+            <div class="stat-sub" id="stat-green-sub">0 posiciones en verde</div>
+          </div>
+          <div class="stat-value green" id="stat-green-val">+$0</div>
+        </div>
       </div>
     </div>
     <div class="section-hdr">Holdings — toca para analizar</div>
@@ -996,17 +1006,22 @@ function updateStatStrip() {
   // Unrealized P&L — usar valores calculados por Sheets si existen,
   // si no (datos hardcodeados) recalcular desde cost/shares/pnl
   let totalCost = 0, totalCurrent = 0, unrealUsdSum = 0;
+  let greenUsdSum = 0, greenCount = 0;
   HOLDINGS.forEach(h => {
     if (h.costBasis) {
       totalCost += h.costBasis;
       totalCurrent += h.currentVal || 0;
-      unrealUsdSum += h.unrealUsd || 0;
+      const gain = h.unrealUsd || 0;
+      unrealUsdSum += gain;
+      if (h.pnl >= 0) { greenUsdSum += gain; greenCount++; }
     } else {
       const basis = h.cost * h.shares;
       totalCost += basis;
       const cur = basis * (1 + h.pnl / 100);
       totalCurrent += cur;
-      unrealUsdSum += cur - basis;
+      const gain = cur - basis;
+      unrealUsdSum += gain;
+      if (h.pnl >= 0) { greenUsdSum += gain; greenCount++; }
     }
   });
   const unrealUsd = unrealUsdSum;
@@ -1047,6 +1062,11 @@ function updateStatStrip() {
   if (pc) pc.textContent = posCount;
   const ps = document.getElementById('stat-pos-sub');
   if (ps) ps.textContent = `${redCount} en rojo`;
+
+  const gv = document.getElementById('stat-green-val');
+  if (gv) gv.textContent = `+$${Math.abs(greenUsdSum).toFixed(0)}`;
+  const gs = document.getElementById('stat-green-sub');
+  if (gs) gs.textContent = `${greenCount} posici${greenCount === 1 ? 'ón' : 'ones'} en verde`;
 
   // Subheader de trades y holdings
   document.querySelectorAll('div.sub').forEach(el => {
