@@ -153,6 +153,24 @@
     flex-shrink: 0;
   }
 
+  /* RENTABILIDAD REALIZADA — GRÁFICO HISTÓRICO */
+  .realized-chart-wrap {
+    margin: 0 12px 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .realized-chart-wrap canvas { width: 100%; height: 100px; display: block; }
+  .realized-chart-empty {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
   /* HOLDINGS — CARD LIST */
   .holdings-list { display: flex; flex-direction: column; gap: 8px; padding: 0 12px; }
   .holding-card {
@@ -604,6 +622,11 @@
           <div class="stat-value red" id="stat-loss-val">-$0</div>
         </div>
       </div>
+    </div>
+    <div class="section-hdr">Rentabilidad realizada — histórico</div>
+    <div class="realized-chart-wrap">
+      <canvas id="realized-chart" width="600" height="180"></canvas>
+      <div class="realized-chart-empty" id="realized-chart-empty" style="display:none">Sin ventas registradas todavía</div>
     </div>
     <div class="section-hdr">Holdings — toca para analizar</div>
     <div id="daily-briefing-wrap" style="padding:0 12px 8px;"></div>
@@ -1242,6 +1265,91 @@ function tradeDateVal(str) {
   return parseInt(a)*31 + parseInt(b);
 }
 
+function renderRealizedChart() {
+  const canvas = document.getElementById('realized-chart');
+  const emptyEl = document.getElementById('realized-chart-empty');
+  if (!canvas) return;
+
+  const sells = TRADES.filter(t => t.type === 'sell' && t.pnl !== null)
+    .sort((a, b) => tradeDateVal(a.date) - tradeDateVal(b.date));
+
+  if (sells.length === 0) {
+    canvas.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'flex';
+    return;
+  }
+  canvas.style.display = 'block';
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  let cum = 0;
+  const points = sells.map(t => ({ date: t.date, cum: (cum += t.pnl) }));
+
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 6, padR = 6, padT = 26, padB = 20;
+  const values = points.map(p => p.cum);
+  const minV = Math.min(0, ...values);
+  const maxV = Math.max(0, ...values);
+  const range = (maxV - minV) || 1;
+
+  const xStep = points.length > 1 ? (W - padL - padR) / (points.length - 1) : 0;
+  const xAt = i => padL + xStep * i;
+  const yAt = v => padT + (H - padT - padB) * (1 - (v - minV) / range);
+
+  const lastVal = values[values.length - 1];
+  const isPos = lastVal >= 0;
+  const lineColor = isPos ? '#00e5a0' : '#ff4d6d';
+  const fillColor = isPos ? 'rgba(0,229,160,0.12)' : 'rgba(255,77,109,0.12)';
+  const zeroY = yAt(0);
+
+  // Línea de cero
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, zeroY); ctx.lineTo(W - padR, zeroY); ctx.stroke();
+
+  // Área bajo la curva
+  ctx.beginPath();
+  ctx.moveTo(xAt(0), zeroY);
+  points.forEach((p, i) => ctx.lineTo(xAt(i), yAt(p.cum)));
+  ctx.lineTo(xAt(points.length - 1), zeroY);
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+
+  // Línea acumulada
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    const x = xAt(i), y = yAt(p.cum);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Punto final
+  const lastX = xAt(points.length - 1), lastY = yAt(lastVal);
+  ctx.beginPath(); ctx.arc(lastX, lastY, 3, 0, Math.PI * 2); ctx.fillStyle = lineColor; ctx.fill();
+
+  // Etiquetas de fecha
+  ctx.font = '9px DM Mono,monospace';
+  ctx.fillStyle = '#6b6b80';
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillText(points[0].date, padL, H - 4);
+  ctx.textAlign = 'right';
+  ctx.fillText(points[points.length - 1].date, W - padR, H - 4);
+
+  // Valor acumulado final
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 14px Syne,sans-serif';
+  ctx.fillStyle = lineColor;
+  const sign = lastVal >= 0 ? '+' : '-';
+  ctx.fillText(`${sign}$${Math.abs(lastVal).toFixed(0)}`, W - padR, 16);
+}
+
 function renderTrades() {
   const list = document.getElementById('trades-list');
   const sorted = [...TRADES].sort((a,b) => tradeDateVal(b.date) - tradeDateVal(a.date));
@@ -1456,6 +1564,7 @@ async function loadFromSheets() {
     // Fallback a datos hardcodeados
     renderHoldings();
     renderTrades();
+    renderRealizedChart();
     renderAlerts();
     updateStatStrip();
   }
@@ -1558,6 +1667,7 @@ function parseAndRender(data) {
 
   renderHoldings();
   renderTrades();
+  renderRealizedChart();
   updateStatStrip();
   renderAlerts();
 }
