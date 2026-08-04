@@ -623,6 +623,11 @@
         </div>
       </div>
     </div>
+    <div class="section-hdr">Rentabilidad total — histórico</div>
+    <div class="realized-chart-wrap">
+      <canvas id="portfolio-history-chart" width="600" height="180"></canvas>
+      <div class="realized-chart-empty" id="portfolio-history-empty" style="display:none">Acumulando datos desde hoy — volvé mañana para ver la evolución</div>
+    </div>
     <div class="section-hdr">Rentabilidad realizada — histórico</div>
     <div class="realized-chart-wrap">
       <canvas id="realized-chart" width="600" height="180"></canvas>
@@ -1111,6 +1116,8 @@ function updateStatStrip() {
     const sellCount = TRADES.filter(t => t.type === 'sell').length;
     if (el.textContent.includes('operaciones')) el.textContent = tradeCount + ' operaciones · ' + sellCount + ' ventas';
   });
+
+  if (totalCost > 0) renderPortfolioHistoryChart(unrealPct);
 }
 
 // ===== RENTABILIDAD TOTAL DEL DIA =====
@@ -1265,15 +1272,9 @@ function tradeDateVal(str) {
   return parseInt(a)*31 + parseInt(b);
 }
 
-function renderRealizedChart() {
-  const canvas = document.getElementById('realized-chart');
-  const emptyEl = document.getElementById('realized-chart-empty');
+function drawTimeSeriesChart(canvas, emptyEl, points, formatValue) {
   if (!canvas) return;
-
-  const sells = TRADES.filter(t => t.type === 'sell' && t.pnl !== null)
-    .sort((a, b) => tradeDateVal(a.date) - tradeDateVal(b.date));
-
-  if (sells.length === 0) {
+  if (!points || points.length < 2) {
     canvas.style.display = 'none';
     if (emptyEl) emptyEl.style.display = 'flex';
     return;
@@ -1281,20 +1282,17 @@ function renderRealizedChart() {
   canvas.style.display = 'block';
   if (emptyEl) emptyEl.style.display = 'none';
 
-  let cum = 0;
-  const points = sells.map(t => ({ date: t.date, cum: (cum += t.pnl) }));
-
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
 
   const padL = 6, padR = 6, padT = 26, padB = 20;
-  const values = points.map(p => p.cum);
+  const values = points.map(p => p.value);
   const minV = Math.min(0, ...values);
   const maxV = Math.max(0, ...values);
   const range = (maxV - minV) || 1;
 
-  const xStep = points.length > 1 ? (W - padL - padR) / (points.length - 1) : 0;
+  const xStep = (W - padL - padR) / (points.length - 1);
   const xAt = i => padL + xStep * i;
   const yAt = v => padT + (H - padT - padB) * (1 - (v - minV) / range);
 
@@ -1312,16 +1310,16 @@ function renderRealizedChart() {
   // Área bajo la curva
   ctx.beginPath();
   ctx.moveTo(xAt(0), zeroY);
-  points.forEach((p, i) => ctx.lineTo(xAt(i), yAt(p.cum)));
+  points.forEach((p, i) => ctx.lineTo(xAt(i), yAt(p.value)));
   ctx.lineTo(xAt(points.length - 1), zeroY);
   ctx.closePath();
   ctx.fillStyle = fillColor;
   ctx.fill();
 
-  // Línea acumulada
+  // Línea
   ctx.beginPath();
   points.forEach((p, i) => {
-    const x = xAt(i), y = yAt(p.cum);
+    const x = xAt(i), y = yAt(p.value);
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.strokeStyle = lineColor;
@@ -1338,16 +1336,49 @@ function renderRealizedChart() {
   ctx.fillStyle = '#6b6b80';
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
-  ctx.fillText(points[0].date, padL, H - 4);
+  ctx.fillText(points[0].label, padL, H - 4);
   ctx.textAlign = 'right';
-  ctx.fillText(points[points.length - 1].date, W - padR, H - 4);
+  ctx.fillText(points[points.length - 1].label, W - padR, H - 4);
 
-  // Valor acumulado final
+  // Valor final
   ctx.textAlign = 'right';
   ctx.font = 'bold 14px Syne,sans-serif';
   ctx.fillStyle = lineColor;
-  const sign = lastVal >= 0 ? '+' : '-';
-  ctx.fillText(`${sign}$${Math.abs(lastVal).toFixed(0)}`, W - padR, 16);
+  ctx.fillText(formatValue(lastVal), W - padR, 16);
+}
+
+function renderRealizedChart() {
+  const canvas = document.getElementById('realized-chart');
+  const emptyEl = document.getElementById('realized-chart-empty');
+  const sells = TRADES.filter(t => t.type === 'sell' && t.pnl !== null)
+    .sort((a, b) => tradeDateVal(a.date) - tradeDateVal(b.date));
+  let cum = 0;
+  const points = sells.map(t => ({ label: t.date, value: (cum += t.pnl) }));
+  drawTimeSeriesChart(canvas, emptyEl, points, v => `${v >= 0 ? '+' : '-'}$${Math.abs(v).toFixed(0)}`);
+}
+
+// ===== RENTABILIDAD TOTAL DEL PORTAFOLIO — HISTÓRICO =====
+// No hay historial de valores pasados: se toma una foto diaria (localStorage)
+// cada vez que se cargan los stats, y el gráfico crece día a día desde hoy.
+const PORTFOLIO_HISTORY_KEY = 'portfolio_return_history';
+
+function recordPortfolioSnapshot(pct) {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(PORTFOLIO_HISTORY_KEY) || '[]'); } catch(e) {}
+  const today = new Date().toISOString().slice(0, 10);
+  const idx = history.findIndex(h => h.date === today);
+  const entry = { date: today, pct };
+  if (idx >= 0) history[idx] = entry; else history.push(entry);
+  try { localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(history)); } catch(e) {}
+  return history;
+}
+
+function renderPortfolioHistoryChart(pct) {
+  const canvas = document.getElementById('portfolio-history-chart');
+  const emptyEl = document.getElementById('portfolio-history-empty');
+  const history = recordPortfolioSnapshot(pct).sort((a, b) => a.date.localeCompare(b.date));
+  const points = history.map(h => ({ label: h.date.slice(5), value: h.pct }));
+  drawTimeSeriesChart(canvas, emptyEl, points, v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`);
 }
 
 function renderTrades() {
